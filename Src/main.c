@@ -9,7 +9,6 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-#include "euler.h"
 #include "dcm.h"
 #include "matrix.h"
 #include "math_constants.h"
@@ -28,8 +27,6 @@ int main(void) {
 	euler.yaw_rad = ang[0] * MATH_DEG_TO_RAD;
 	euler.pitch_rad = ang[1] * MATH_DEG_TO_RAD;
 	euler.roll_rad = ang[2] * MATH_DEG_TO_RAD;
-
-	Euler_ToDcm_stp(&euler, &dcm);
 
 	for (i = 0; i < 3; i++) {
 		for (j = 0; j < 3; j++) {

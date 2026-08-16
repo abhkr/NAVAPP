@@ -14,8 +14,8 @@
 #include "quaternion.h"
 #include "vector3.h"
 #include "matrix.h"
-#include "euler.h"
 #include "wgs84.h"
+#include "transform.h"
 
 #define PURE_NAVIGATION_GRAVITY_M_S2       (9.80665)
 #define PURE_NAVIGATION_MIN_DT_S           (1.0e-9)
@@ -48,8 +48,6 @@ void PureNavigation_Init(PureNavigationState_t *navigation) {
 		Quaternion_Identity(&navigation->solution.quaternion_ned_to_body);
 
 		Matrix3_Identity(&navigation->solution.dcm_ned_to_body);
-
-		EulerAngles_Zero(&navigation->solution.attitude_rad);
 
 		navigation->solution.time_s = 0.0;
 		navigation->solution.valid = false;
@@ -175,7 +173,7 @@ static bool PureNavigation_UpdateAttitude(PureNavigationState_t *navigation,
 			Dcm_FromQuaternion(&navigation->solution.quaternion_ned_to_body,
 					&navigation->solution.dcm_ned_to_body);
 
-			Euler_FromDcm_stp(&navigation->solution.dcm_ned_to_body,
+			Transform_DcmToEuler(&navigation->solution.dcm_ned_to_body,
 					&navigation->solution.attitude_rad);
 
 			status = true;
