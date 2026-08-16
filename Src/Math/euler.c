@@ -8,6 +8,7 @@
 #include "euler.h"
 
 #include <math.h>
+#include <stdlib.h>
 
 #include "dcm.h"
 #include "math_constants.h"
@@ -78,18 +79,75 @@ void Euler_ToQuaternion(const EulerAngles_t *euler, Quaternion_t *quaternion) {
 	quaternion->z = (cr * cp * sy) - (sr * sp * cy);
 }
 
-void Euler_FromDcm_stp(const Matrix3_t *dcm, EulerAngles_t *euler) {
-	Quaternion_t quaternion;
+MathStatus_t Euler_FromDcm_stp(const Matrix3_t *dcm, EulerAngles_t *euler) {
+	double c_theta;
+	double s_theta;
 
-	quaternion = Dcm_ToQuaternion(dcm);
+	if ((euler == NULL) || (dcm == NULL)) {
+		return MATH_STATUS_NULL_POINTER;
+	}
 
-	Euler_FromQuaternion(&quaternion, euler);
+	s_theta = -dcm->m02;
+
+	if (s_theta > 1.0) {
+		s_theta = 1.0;
+	} else if (s_theta < -1.0) {
+		s_theta = -1.0;
+	} else {
+		/* Value is already within the valid range. */
+	}
+	euler->pitch_rad = asin(s_theta);
+
+	c_theta = cos(euler->pitch_rad);
+
+	if (c_theta > MATH_EPSILON) {
+		euler->roll_rad = atan2(dcm->m12, dcm->m22);
+		euler->yaw_rad = atan2(dcm->m01, dcm->m00);
+	} else {
+		euler->roll_rad = 0.0;
+		if (s_theta >= 0.0) {
+			euler->yaw_rad = atan2(-dcm->m10, dcm->m11);
+		} else {
+			euler->yaw_rad = atan2(dcm->m10, dcm->m11);
+		}
+		return MATH_STATUS_SINGULAR_MATRIX;
+	}
+
+	return MATH_STATUS_OK;
 }
 
-void Euler_ToDcm_stp(const EulerAngles_t *euler, Matrix3_t *dcm) {
-	Quaternion_t quaternion;
+MathStatus_t Euler_ToDcm_stp(const EulerAngles_t *euler, Matrix3_t *dcm) {
+	double c_psi;
+	double s_psi;
+	double c_phi;
+	double s_phi;
+	double c_theta;
+	double s_theta;
 
-	Euler_ToQuaternion(euler, &quaternion);
+	if ((euler == NULL) || (dcm == NULL)) {
+		return MATH_STATUS_NULL_POINTER;
+	}
 
-	Dcm_FromQuaternion(&quaternion, dcm);
+	c_psi = cos(euler->yaw_rad);
+	s_psi = sin(euler->yaw_rad);
+
+	c_phi = cos(euler->roll_rad);
+	s_phi = sin(euler->roll_rad);
+
+	c_theta = cos(euler->pitch_rad);
+	s_theta = sin(euler->pitch_rad);
+
+	dcm->m00 = c_theta * c_psi;
+	dcm->m01 = c_theta * s_psi;
+	dcm->m02 = -s_theta;
+
+	dcm->m10 = (c_psi * s_theta * s_phi) - (c_phi * s_psi);
+	dcm->m11 = (c_phi * c_psi) + (s_theta * s_phi * s_psi);
+	dcm->m12 = c_theta * s_phi;
+
+	dcm->m20 = (c_phi * c_psi * s_theta) + (s_phi * s_psi);
+	dcm->m21 = (-c_psi * s_phi) + (c_phi * s_theta * s_psi);
+	dcm->m22 = c_theta * c_phi;
+
+	return MATH_STATUS_OK;
 }

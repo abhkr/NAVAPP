@@ -16,8 +16,8 @@ void Euler_FromQuaternion(const Quaternion_t *quaternion, EulerAngles_t *euler);
 
 void Euler_ToQuaternion(const EulerAngles_t *euler, Quaternion_t *quaternion);
 
-void Euler_FromDcm_stp(const Matrix3_t *dcm, EulerAngles_t *euler);
+MathStatus_t Euler_FromDcm_stp(const Matrix3_t *dcm, EulerAngles_t *euler);
 
-void Euler_ToDcm_stp(const EulerAngles_t *euler, Matrix3_t *dcm);
+MathStatus_t Euler_ToDcm_stp(const EulerAngles_t *euler, Matrix3_t *dcm);
 
 #endif /* EULER_H_ */

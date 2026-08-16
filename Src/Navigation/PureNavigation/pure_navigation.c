@@ -142,7 +142,7 @@ bool PureNavigation_GetSolution(const PureNavigationState_t *navigation,
 static void PureNavigation_RemoveBias(const Vector3_t *measurement,
 		const Vector3_t *bias, double dt_s, Vector3_t *bias_delta) {
 
-	*bias_delta = Vector3_Scale(bias, dt_s);
+	Vector3_Scale(bias, dt_s, bias_delta);
 
 	Vector3_Subtract(measurement, bias_delta, bias_delta);
 }
@@ -211,18 +211,18 @@ static bool PureNavigation_UpdateVelocity(PureNavigationState_t *navigation,
 
 	gravity_ned_m_s2 = PureNavigation_GetGravityNed();
 
-	gravity_delta_m_s = Vector3_Scale(&gravity_ned_m_s2, dt_s);
+	Vector3_Scale(&gravity_ned_m_s2, dt_s, &gravity_delta_m_s);
 
 	/*
 	 * NED gravity is positive down.
 	 *
 	 * Specific force and gravity are combined here.
 	 */
-	delta_velocity_ned_m_s = Vector3_Add(&delta_velocity_ned_m_s,
-			&gravity_delta_m_s);
+	Vector3_Add(&delta_velocity_ned_m_s, &gravity_delta_m_s,
+			&delta_velocity_ned_m_s);
 
-	navigation->solution.velocity_ned_m_s = Vector3_Add(
-			&navigation->solution.velocity_ned_m_s, &delta_velocity_ned_m_s);
+	Vector3_Add(&navigation->solution.velocity_ned_m_s, &delta_velocity_ned_m_s,
+			&navigation->solution.velocity_ned_m_s);
 
 	return true;
 }

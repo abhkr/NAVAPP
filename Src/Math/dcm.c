@@ -131,7 +131,7 @@ MathStatus_t Dcm_Orthonormalize(Matrix3_t *dcm) {
 	row1.y += error * row0.y;
 	row1.z += error * row0.z;
 
-	row2 = Vector3_Cross(&row0, &row1);
+	Vector3_Cross(&row0, &row1, &row2);
 
 	if ((Vector3_Normalize(&row0) != MATH_STATUS_OK)
 			|| (Vector3_Normalize(&row1) != MATH_STATUS_OK)

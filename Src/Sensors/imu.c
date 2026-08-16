@@ -35,11 +35,11 @@ SensorStatus_t Imu_Process(Imu_t *imu, const ImuRawData_t *raw_data) {
 		return SENSOR_STATUS_INVALID_DATA;
 	}
 
-	raw_gyro = Vector3_Create(raw_data->gyro_x, raw_data->gyro_y,
-			raw_data->gyro_z);
+	Vector3_Create(raw_data->gyro_x, raw_data->gyro_y, raw_data->gyro_z,
+			&raw_gyro);
 
-	raw_accel = Vector3_Create(raw_data->accel_x, raw_data->accel_y,
-			raw_data->accel_z);
+	Vector3_Create(raw_data->accel_x, raw_data->accel_y, raw_data->accel_z,
+			&raw_accel);
 
 	ImuCalibration_ApplyGyro(&imu->calibration, &raw_gyro,
 			&imu->measurement.gyro_rad_s);

@@ -11,6 +11,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+typedef double float64_t;
+
 /*
  * Mathematical scalar type used throughout the navigation software.
  *

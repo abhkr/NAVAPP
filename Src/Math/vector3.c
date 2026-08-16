@@ -1,73 +1,114 @@
-/*
- * vector3.c
- *
- *  Created on: 11-Aug-2026
- *      Author: ngarm-ins
- */
 #include <stdlib.h>
 #include <math.h>
 
 #include "vector3.h"
 #include "math_constants.h"
 
-void Vector3_Create(double x, double y, double z, Vector3_t *result) {
+MathStatus_t Vector3_Create(double x, double y, double z, Vector3_t *result) {
+
+	if (result == NULL) {
+		return MATH_STATUS_NULL_POINTER;
+	}
 
 	result->x = x;
 	result->y = y;
 	result->z = z;
+
+	return MATH_STATUS_OK;
 }
 
-void Vector3_Zero(Vector3_t *result) {
+MathStatus_t Vector3_Zero(Vector3_t *result) {
+
+	if (result == NULL) {
+		return MATH_STATUS_NULL_POINTER;
+	}
 
 	result->x = 0.0;
 	result->y = 0.0;
 	result->z = 0.0;
+
+	return MATH_STATUS_OK;
 }
 
-void Vector3_Add(const Vector3_t *lhs, const Vector3_t *rhs, Vector3_t *result) {
+MathStatus_t Vector3_Add(const Vector3_t *lhs, const Vector3_t *rhs,
+		Vector3_t *result) {
+
+	if ((lhs == NULL) || (rhs == NULL) || result == NULL) {
+		return MATH_STATUS_NULL_POINTER;
+	}
 
 	result->x = lhs->x + rhs->x;
 	result->y = lhs->y + rhs->y;
 	result->z = lhs->z + rhs->z;
+
+	return MATH_STATUS_OK;
 }
 
-void Vector3_Subtract(const Vector3_t *lhs, const Vector3_t *rhs,
+MathStatus_t Vector3_Subtract(const Vector3_t *lhs, const Vector3_t *rhs,
 		Vector3_t *result) {
+
+	if ((lhs == NULL) || (rhs == NULL) || result == NULL) {
+		return MATH_STATUS_NULL_POINTER;
+	}
 
 	result->x = lhs->x - rhs->x;
 	result->y = lhs->y - rhs->y;
 	result->z = lhs->z - rhs->z;
+
+	return MATH_STATUS_OK;
 }
 
-void Vector3_Scale(const Vector3_t *vector, double scale, Vector3_t *result) {
+MathStatus_t Vector3_Scale(const Vector3_t *vector, double scale,
+		Vector3_t *result) {
+
+	if ((vector == NULL) || (result == NULL)) {
+		return MATH_STATUS_NULL_POINTER;
+	}
 
 	result->x = vector->x * scale;
 	result->y = vector->y * scale;
 	result->z = vector->z * scale;
+
+	return MATH_STATUS_OK;
 }
 
-double Vector3_Dot(const Vector3_t *lhs, const Vector3_t *rhs) {
-	double result;
+float64_t Vector3_Dot(const Vector3_t *lhs, const Vector3_t *rhs) {
+	float64_t result;
 
-	result = (lhs->x * rhs->x) + (lhs->y * rhs->y) + (lhs->z * rhs->z);
+	if ((lhs == NULL) || (rhs == NULL)) {
+		result = 0.0;
+	} else {
+		result = (lhs->x * rhs->x) + (lhs->y * rhs->y) + (lhs->z * rhs->z);
+	}
 
 	return result;
 }
 
-void Vector3_Cross(const Vector3_t *lhs, const Vector3_t *rhs,
+MathStatus_t Vector3_Cross(const Vector3_t *lhs, const Vector3_t *rhs,
 		Vector3_t *result) {
+
+	if ((lhs == NULL) || (rhs == NULL) || result == NULL) {
+		return MATH_STATUS_NULL_POINTER;
+	}
 
 	result->x = (lhs->y * rhs->z) - (lhs->z * rhs->y);
 	result->y = (lhs->z * rhs->x) - (lhs->x * rhs->z);
 	result->z = (lhs->x * rhs->y) - (lhs->y * rhs->x);
+
+	return MATH_STATUS_OK;
 }
 
-double Vector3_Norm(const Vector3_t *vector) {
-	double norm_squared;
-	double norm;
+float64_t Vector3_Norm(const Vector3_t *vector) {
+	float64_t norm_squared;
+	float64_t norm;
 
-	norm_squared = (vector->x * vector->x) + (vector->y * vector->y)
-			+ (vector->z * vector->z);
+	if (vector == NULL) {
+		norm_squared = 0.0;
+	} else {
+
+		norm_squared = (vector->x * vector->x) + (vector->y * vector->y)
+				+ (vector->z * vector->z);
+	}
 
 	norm = sqrt(norm_squared);
 
@@ -75,7 +116,7 @@ double Vector3_Norm(const Vector3_t *vector) {
 }
 
 MathStatus_t Vector3_Normalize(Vector3_t *vector) {
-	double norm;
+	float64_t norm;
 
 	if (vector == NULL) {
 		return MATH_STATUS_NULL_POINTER;
