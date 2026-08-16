@@ -12,7 +12,11 @@
 #include <math.h>
 #include <stdlib.h>
 
-void Matrix3_Zero(Matrix3_t *result) {
+MathStatus_t Matrix3_Zero(Matrix3_t *result) {
+
+	if (result == NULL) {
+		return MATH_STATUS_NULL_POINTER;
+	}
 
 	result->m00 = 0.0;
 	result->m01 = 0.0;
@@ -25,20 +29,33 @@ void Matrix3_Zero(Matrix3_t *result) {
 	result->m20 = 0.0;
 	result->m21 = 0.0;
 	result->m22 = 0.0;
+
+	return MATH_STATUS_OK;
 }
 
-void Matrix3_Identity(Matrix3_t *result) {
+MathStatus_t Matrix3_Identity(Matrix3_t *result) {
+
+	if (result == NULL) {
+		return MATH_STATUS_NULL_POINTER;
+	}
+
 	Matrix3_Zero(result);
 
 	result->m00 = 1.0;
 	result->m11 = 1.0;
 	result->m22 = 1.0;
+
+	return MATH_STATUS_OK;
 }
 
-void Matrix3_Transpose(const Matrix3_t *matrix, Matrix3_t *result) {
+MathStatus_t Matrix3_Transpose(const Matrix3_t *matrix, Matrix3_t *result) {
 	Matrix3_t temp;
 	uint8_t i;
 	uint8_t j;
+
+	if ((matrix == NULL) || (result == NULL)) {
+		return MATH_STATUS_NULL_POINTER;
+	}
 
 	temp.m00 = matrix->m00;
 	temp.m01 = matrix->m10;
@@ -57,9 +74,16 @@ void Matrix3_Transpose(const Matrix3_t *matrix, Matrix3_t *result) {
 			result->m_data[i][j] = temp.m_data[i][j];
 		}
 	}
+
+	return MATH_STATUS_OK;
 }
 
-void Matrix3_Add(const Matrix3_t *lhs, const Matrix3_t *rhs, Matrix3_t *result) {
+MathStatus_t Matrix3_Add(const Matrix3_t *lhs, const Matrix3_t *rhs,
+		Matrix3_t *result) {
+
+	if ((lhs == NULL) || (rhs == NULL) || (result == NULL)) {
+		return MATH_STATUS_NULL_POINTER;
+	}
 
 	result->m00 = lhs->m00 + rhs->m00;
 	result->m01 = lhs->m01 + rhs->m01;
@@ -72,10 +96,16 @@ void Matrix3_Add(const Matrix3_t *lhs, const Matrix3_t *rhs, Matrix3_t *result) 
 	result->m20 = lhs->m20 + rhs->m20;
 	result->m21 = lhs->m21 + rhs->m21;
 	result->m22 = lhs->m22 + rhs->m22;
+
+	return MATH_STATUS_OK;
 }
 
-void Matrix3_Subtract(const Matrix3_t *lhs, const Matrix3_t *rhs,
+MathStatus_t Matrix3_Subtract(const Matrix3_t *lhs, const Matrix3_t *rhs,
 		Matrix3_t *result) {
+
+	if ((lhs == NULL) || (rhs == NULL) || (result == NULL)) {
+		return MATH_STATUS_NULL_POINTER;
+	}
 
 	result->m00 = lhs->m00 - rhs->m00;
 	result->m01 = lhs->m01 - rhs->m01;
@@ -88,9 +118,16 @@ void Matrix3_Subtract(const Matrix3_t *lhs, const Matrix3_t *rhs,
 	result->m20 = lhs->m20 - rhs->m20;
 	result->m21 = lhs->m21 - rhs->m21;
 	result->m22 = lhs->m22 - rhs->m22;
+
+	return MATH_STATUS_OK;
 }
 
-void Matrix3_Scale(const Matrix3_t *matrix, double scale, Matrix3_t *result) {
+MathStatus_t Matrix3_Scale(const Matrix3_t *matrix, double scale,
+		Matrix3_t *result) {
+
+	if ((matrix == NULL) || (result == NULL)) {
+		return MATH_STATUS_NULL_POINTER;
+	}
 
 	result->m00 = matrix->m00 * scale;
 	result->m01 = matrix->m01 * scale;
@@ -103,10 +140,16 @@ void Matrix3_Scale(const Matrix3_t *matrix, double scale, Matrix3_t *result) {
 	result->m20 = matrix->m20 * scale;
 	result->m21 = matrix->m21 * scale;
 	result->m22 = matrix->m22 * scale;
+
+	return MATH_STATUS_OK;
 }
 
-void Matrix3_Multiply(const Matrix3_t *lhs, const Matrix3_t *rhs,
+MathStatus_t Matrix3_Multiply(const Matrix3_t *lhs, const Matrix3_t *rhs,
 		Matrix3_t *result) {
+
+	if ((lhs == NULL) || (rhs == NULL) || (result == NULL)) {
+		return MATH_STATUS_NULL_POINTER;
+	}
 
 	result->m00 = (lhs->m00 * rhs->m00) + (lhs->m01 * rhs->m10)
 			+ (lhs->m02 * rhs->m20);
@@ -134,10 +177,16 @@ void Matrix3_Multiply(const Matrix3_t *lhs, const Matrix3_t *rhs,
 
 	result->m22 = (lhs->m20 * rhs->m02) + (lhs->m21 * rhs->m12)
 			+ (lhs->m22 * rhs->m22);
+
+	return MATH_STATUS_OK;
 }
 
-void Matrix3_MultiplyVector(const Matrix3_t *matrix, const Vector3_t *vector,
-		Vector3_t *result) {
+MathStatus_t Matrix3_MultiplyVector(const Matrix3_t *matrix,
+		const Vector3_t *vector, Vector3_t *result) {
+
+	if ((matrix == NULL) || (vector == NULL) || (result == NULL)) {
+		return MATH_STATUS_NULL_POINTER;
+	}
 
 	result->x = (matrix->m00 * vector->x) + (matrix->m01 * vector->y)
 			+ (matrix->m02 * vector->z);
@@ -147,20 +196,26 @@ void Matrix3_MultiplyVector(const Matrix3_t *matrix, const Vector3_t *vector,
 
 	result->z = (matrix->m20 * vector->x) + (matrix->m21 * vector->y)
 			+ (matrix->m22 * vector->z);
+
+	return MATH_STATUS_OK;
 }
 
-double Matrix3_Determinant(const Matrix3_t *matrix) {
-	double determinant;
+float64_t Matrix3_Determinant(const Matrix3_t *matrix) {
+	float64_t determinant;
 
-	determinant =
-			(matrix->m00
-					* ((matrix->m11 * matrix->m22) - (matrix->m12 * matrix->m21)))
-					- (matrix->m01
-							* ((matrix->m10 * matrix->m22)
-									- (matrix->m12 * matrix->m20)))
-					+ (matrix->m02
-							* ((matrix->m10 * matrix->m21)
-									- (matrix->m11 * matrix->m20)));
+	if (matrix == NULL) {
+		determinant = 0.0;
+	} else {
+
+		determinant = (matrix->m00
+				* ((matrix->m11 * matrix->m22) - (matrix->m12 * matrix->m21)))
+				- (matrix->m01
+						* ((matrix->m10 * matrix->m22)
+								- (matrix->m12 * matrix->m20)))
+				+ (matrix->m02
+						* ((matrix->m10 * matrix->m21)
+								- (matrix->m11 * matrix->m20)));
+	}
 
 	return determinant;
 }
