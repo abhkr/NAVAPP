@@ -170,7 +170,8 @@ static bool PureNavigation_UpdateAttitude(PureNavigationState_t *navigation,
 		if (Quaternion_Normalize(&updated_quaternion) == true) {
 			navigation->solution.quaternion_ned_to_body = updated_quaternion;
 
-			Dcm_FromQuaternion(&navigation->solution.quaternion_ned_to_body,
+			Transform_QuaternionToDcm(
+					&navigation->solution.quaternion_ned_to_body,
 					&navigation->solution.dcm_ned_to_body);
 
 			Transform_DcmToEuler(&navigation->solution.dcm_ned_to_body,

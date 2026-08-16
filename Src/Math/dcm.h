@@ -10,13 +10,9 @@
 
 #include "math_types.h"
 
-void Dcm_Identity(Matrix3_t *dcm);
+MathStatus_t Dcm_Identity(Matrix3_t *dcm);
 
-void Dcm_FromQuaternion(const Quaternion_t *quaternion, Matrix3_t *dcm);
-
-Quaternion_t Dcm_ToQuaternion(const Matrix3_t *dcm);
-
-void Dcm_MultiplyVector(const Matrix3_t *dcm, const Vector3_t *vector,
+MathStatus_t Dcm_MultiplyVector(const Matrix3_t *dcm, const Vector3_t *vector,
 		Vector3_t *result);
 
 MathStatus_t Dcm_Orthonormalize(Matrix3_t *dcm);
