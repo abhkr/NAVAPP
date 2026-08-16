@@ -161,11 +161,10 @@ static bool PureNavigation_UpdateAttitude(PureNavigationState_t *navigation,
 		 * Body-frame incremental rotation is
 		 * therefore post-multiplied.
 		 */
-		delta_quaternion = Quaternion_FromRotationVector(delta_angle_rad);
+		Quaternion_FromRotationVector(delta_angle_rad, &delta_quaternion);
 
-		updated_quaternion = Quaternion_Multiply(
-				&navigation->solution.quaternion_ned_to_body,
-				&delta_quaternion);
+		Quaternion_Multiply(&navigation->solution.quaternion_ned_to_body,
+				&delta_quaternion, &updated_quaternion);
 
 		if (Quaternion_Normalize(&updated_quaternion) == true) {
 			navigation->solution.quaternion_ned_to_body = updated_quaternion;
