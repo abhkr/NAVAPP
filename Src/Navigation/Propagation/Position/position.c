@@ -8,6 +8,7 @@
 #include "position.h"
 
 #include <math.h>
+#include <stdlib.h>
 
 #define EARTH_SEMI_MAJOR_AXIS_M    (6378137.0)
 #define EARTH_ECCENTRICITY_SQ      (0.00669437999014)

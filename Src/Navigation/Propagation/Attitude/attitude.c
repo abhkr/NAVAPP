@@ -5,8 +5,10 @@
  *      Author: ngarm-ins
  */
 
-#include "attitude.h"
+#include <stdlib.h>
+#include <stdbool.h>
 
+#include "attitude.h"
 #include "dcm.h"
 #include "quaternion.h"
 

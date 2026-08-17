@@ -8,6 +8,7 @@
 #include "gravity.h"
 
 #include <math.h>
+#include <stdlib.h>
 
 #define GRAVITY_EQUATOR_M_S2       (9.7803253359)
 #define GRAVITY_K                  (0.00193185265241)

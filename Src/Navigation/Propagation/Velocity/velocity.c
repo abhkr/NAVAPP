@@ -5,9 +5,10 @@
  *      Author: ngarm-ins
  */
 
-#include "velocity.h"
+#include <stdlib.h>
+#include <stdbool.h>
 
-#include "dcm.h"
+#include "velocity.h"
 
 static Vector3_t Velocity_TransformBodyToNed(
 		const NavigationAttitude_t *attitude, const Vector3_t *body_vector);
