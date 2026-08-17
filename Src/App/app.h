@@ -11,8 +11,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "../IMU/imu.h"
 #include "gps.h"
-#include "imu.h"
 #include "navigation.h"
 
 /**

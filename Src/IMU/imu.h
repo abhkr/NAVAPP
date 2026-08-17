@@ -10,8 +10,8 @@
 
 #include <stdbool.h>
 
-#include "sensor_types.h"
 #include "imu_calibration.h"
+#include "sensor_types.h"
 
 /**
  * @brief Processed IMU measurement.

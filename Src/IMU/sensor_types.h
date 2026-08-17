@@ -30,35 +30,17 @@ typedef enum {
  * Units depend on the IMU driver configuration.
  */
 typedef struct {
-	double gyro_x;
-	double gyro_y;
-	double gyro_z;
+	float64_t gyro_x;
+	float64_t gyro_y;
+	float64_t gyro_z;
 
-	double accel_x;
-	double accel_y;
-	double accel_z;
+	float64_t accel_x;
+	float64_t accel_y;
+	float64_t accel_z;
 
 	uint32_t timestamp_us;
 
 	bool valid;
 } ImuRawData_t;
-
-/**
- * @brief Raw GPS measurement received from the driver.
- */
-typedef struct {
-	double latitude_deg;
-	double longitude_deg;
-	double altitude_m;
-
-	double velocity_north_m_s;
-	double velocity_east_m_s;
-	double velocity_down_m_s;
-
-	uint32_t timestamp_ms;
-
-	bool position_valid;
-	bool velocity_valid;
-} GpsRawData_t;
 
 #endif /* SENSOR_TYPES_H_ */

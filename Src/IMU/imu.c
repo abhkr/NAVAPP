@@ -5,9 +5,10 @@
  *      Author: ngarm-ins
  */
 
+#include "imu.h"
+
 #include <stdlib.h>
 
-#include "imu.h"
 #include "vector3.h"
 
 void Imu_Init(Imu_t *imu) {
