@@ -11,7 +11,6 @@
 #include <stdbool.h>
 
 #include "imu_calibration.h"
-#include "sensor_types.h"
 #include "imu_types.h"
 
 /**
@@ -25,27 +24,11 @@ typedef struct {
 } Imu_t;
 
 /**
- * @brief Initialize IMU processing.
- */
-void Imu_Init(Imu_t *imu);
-
-/**
- * @brief Process a raw IMU measurement.
- *
- * This function is called whenever a new IMU sample is available.
- */
-SensorStatus_t Imu_Process(Imu_t *imu, const ImuRawData_t *raw_data);
-
-/**
- * @brief Retrieve latest processed measurement.
- */
-SensorStatus_t Imu_GetMeasurement(const Imu_t *imu,
-		ImuMeasurement_t *measurement);
-
-/**
  * @brief Configure IMU calibration.
  */
 SensorStatus_t Imu_SetCalibration(Imu_t *imu,
 		const ImuCalibration_t *calibration);
+
+SensorStatus_t Imu_Acquire(ImuMeasurement_t *measurement);
 
 #endif /* IMU_H_ */

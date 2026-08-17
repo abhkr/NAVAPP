@@ -18,15 +18,15 @@ void Isr_Init(Navigation_t *navigation) {
 }
 
 void Isr_Imu(void) {
-//	ImuMeasurement_t measurement;
-//	bool valid;
+	ImuMeasurement_t measurement;
+	bool valid;
 
 	if (isr_navigation != NULL) {
-//		valid = Imu_Acquire(&measurement);
+		valid = Imu_Acquire(&measurement);
 
-//		if (valid == true) {
-//			Navigation_ImuIsr(isr_navigation, &measurement);
-//		}
+		if (valid == true) {
+			Navigation_ImuIsr(isr_navigation, &measurement);
+		}
 	}
 }
 

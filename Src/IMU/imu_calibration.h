@@ -9,7 +9,7 @@
 #define IMU_CALIBRATION_H_
 
 #include "math_types.h"
-#include "sensor_types.h"
+#include "imu_types.h"
 
 /**
  * @brief IMU calibration parameters.

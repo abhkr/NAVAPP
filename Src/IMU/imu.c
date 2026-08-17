@@ -8,48 +8,23 @@
 #include "imu.h"
 
 #include <stdlib.h>
+#include <math.h>
 
 #include "vector3.h"
+#include "wgs84.h"
+#include "transform.h"
+#include "matrix.h"
 
 void Imu_Init(Imu_t *imu) {
 	if (imu != NULL) {
 		ImuCalibration_Init(&imu->calibration);
 
-		Vector3_Zero(&imu->measurement.gyro_rad_s);
-		Vector3_Zero(&imu->measurement.accel_m_s2);
+		Vector3_Zero(&imu->measurement.gyro_rad_delt);
+		Vector3_Zero(&imu->measurement.accel_m_s_delt);
 		imu->measurement.valid = false;
 
 		imu->initialized = true;
 	}
-}
-
-SensorStatus_t Imu_Process(Imu_t *imu, const ImuRawData_t *raw_data) {
-	Vector3_t raw_gyro;
-	Vector3_t raw_accel;
-
-	if ((imu == NULL) || (raw_data == NULL)) {
-		return SENSOR_STATUS_NULL_POINTER;
-	}
-
-	if (raw_data->valid == false) {
-		return SENSOR_STATUS_INVALID_DATA;
-	}
-
-	Vector3_Create(raw_data->gyro_x, raw_data->gyro_y, raw_data->gyro_z,
-			&raw_gyro);
-
-	Vector3_Create(raw_data->accel_x, raw_data->accel_y, raw_data->accel_z,
-			&raw_accel);
-
-	ImuCalibration_ApplyGyro(&imu->calibration, &raw_gyro,
-			&imu->measurement.gyro_rad_s);
-
-	ImuCalibration_ApplyAccel(&imu->calibration, &raw_accel,
-			&imu->measurement.accel_m_s2);
-
-	imu->measurement.valid = true;
-
-	return SENSOR_STATUS_OK;
 }
 
 SensorStatus_t Imu_GetMeasurement(const Imu_t *imu,
@@ -77,3 +52,56 @@ SensorStatus_t Imu_SetCalibration(Imu_t *imu,
 
 	return SENSOR_STATUS_OK;
 }
+
+SensorStatus_t Imu_Acquire(ImuMeasurement_t *measurement) {
+
+	if (measurement == NULL) {
+		return SENSOR_STATUS_NULL_POINTER;
+	}
+
+//	measurement->gyro_rad_s.x = 0.0;
+//	measurement->gyro_rad_s.y = 0.0;
+//	measurement->gyro_rad_s.z = 0.0;
+//
+//	measurement->accel_m_s2.x = 0.0;
+//	measurement->accel_m_s2.y = 0.0;
+//	measurement->accel_m_s2.z = 0.0;
+
+	return SENSOR_STATUS_OK;
+}
+
+SensorStatus_t Imu_AcquireStatic(ImuMeasurement_t *measurement,
+		const float64_t lattitude, const float64_t del_t,
+		const EulerAngles_t *euler) {
+
+	Vector3_t gyro_rad_delt;
+	Vector3_t acc_m_s_delt;
+	Matrix3_t dcm_ned2body;
+
+	if (measurement == NULL) {
+		return SENSOR_STATUS_NULL_POINTER;
+	}
+
+	gyro_rad_delt.x = WGS84_EARTH_ROTATION_RAD_S * cos(lattitude);
+	gyro_rad_delt.y = 0.0;
+	gyro_rad_delt.z = -WGS84_EARTH_ROTATION_RAD_S * sin(lattitude);
+
+	acc_m_s_delt.x = 0.0;
+	acc_m_s_delt.y = 0.0;
+	acc_m_s_delt.z = -WGS84_STANDARD_GRAVITY_M_S2;
+
+	Vector3_Scale(&gyro_rad_delt, del_t, &gyro_rad_delt);
+
+	Vector3_Scale(&acc_m_s_delt, del_t, &acc_m_s_delt);
+
+	Transform_EulerToDcm(euler, &dcm_ned2body);
+
+	Matrix3_MultiplyVector(&dcm_ned2body, &gyro_rad_delt,
+			&measurement->gyro_rad_delt);
+
+	Matrix3_MultiplyVector(&dcm_ned2body, &acc_m_s_delt,
+			&measurement->accel_m_s_delt);
+
+	return SENSOR_STATUS_OK;
+}
+

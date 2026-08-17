@@ -201,17 +201,17 @@ static void Navigation_CalculateImuAverage(const Navigation_t *navigation,
 	accel_average->z = 0.0;
 
 	for (index = 0U; index < NAVIGATION_IMU_SAMPLE_COUNT; index++) {
-		gyro_average->x += navigation->imu_samples[index].gyro_rad_s.x;
+		gyro_average->x += navigation->imu_samples[index].gyro_rad_delt.x;
 
-		gyro_average->y += navigation->imu_samples[index].gyro_rad_s.y;
+		gyro_average->y += navigation->imu_samples[index].gyro_rad_delt.y;
 
-		gyro_average->z += navigation->imu_samples[index].gyro_rad_s.z;
+		gyro_average->z += navigation->imu_samples[index].gyro_rad_delt.z;
 
-		accel_average->x += navigation->imu_samples[index].accel_m_s2.x;
+		accel_average->x += navigation->imu_samples[index].accel_m_s_delt.x;
 
-		accel_average->y += navigation->imu_samples[index].accel_m_s2.y;
+		accel_average->y += navigation->imu_samples[index].accel_m_s_delt.y;
 
-		accel_average->z += navigation->imu_samples[index].accel_m_s2.z;
+		accel_average->z += navigation->imu_samples[index].accel_m_s_delt.z;
 	}
 
 	gyro_average->x /= (double) NAVIGATION_IMU_SAMPLE_COUNT;

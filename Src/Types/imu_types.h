@@ -15,6 +15,17 @@
 #include "imu_types.h"
 
 /**
+ * @brief Generic sensor processing status.
+ */
+typedef enum {
+	SENSOR_STATUS_OK = 0,
+	SENSOR_STATUS_NULL_POINTER,
+	SENSOR_STATUS_INVALID_DATA,
+	SENSOR_STATUS_NOT_READY,
+	SENSOR_STATUS_CALIBRATION_ERROR
+} SensorStatus_t;
+
+/**
  * @brief Raw IMU measurement.
  *
  * Gyroscope:
@@ -24,41 +35,14 @@
  *     m/s^2
  */
 typedef struct {
-	Vector3_t gyro_rad_s;
+	Vector3_t gyro_rad_delt;
 
-	Vector3_t accel_m_s2;
+	Vector3_t accel_m_s_delt;
 
 	uint64_t timestamp_us;
 
 	bool valid;
 
 } ImuMeasurement_t;
-
-/**
- * @brief IMU sample buffer.
- *
- * Four samples are collected at 2.5 ms intervals
- * to form one 10 ms navigation update.
- */
-#define IMU_SAMPLES_PER_NAV_UPDATE    (4U)
-
-typedef struct {
-	ImuMeasurement_t samples[IMU_SAMPLES_PER_NAV_UPDATE];
-
-	uint32_t sample_count;
-
-} ImuSampleBuffer_t;
-
-/**
- * @brief IMU sensor configuration.
- */
-typedef struct {
-	double sample_period_s;
-
-	double gyro_scale;
-
-	double accel_scale;
-
-} ImuConfiguration_t;
 
 #endif /* TYPES_IMU_TYPES_H_ */
