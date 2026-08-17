@@ -12,42 +12,34 @@
 
 #include "vector3.h"
 
-#define WGS84_EQUATORIAL_RADIUS_M \
-    (6378137.0)
+#define WGS84_EQUATORIAL_RADIUS_M (6378137.0)
 
-#define WGS84_POLAR_RADIUS_M \
-    (6356752.314245179)
+#define WGS84_POLAR_RADIUS_M (6356752.314245179)
 
-#define WGS84_ECCENTRICITY_SQUARED \
-    (0.0066943799901413165)
+#define WGS84_ECCENTRICITY_SQUARED (0.0066943799901413165)
 
-#define WGS84_SECOND_ECCENTRICITY_SQUARED \
-    (0.006739496742276434)
+#define WGS84_SECOND_ECCENTRICITY_SQUARED (0.006739496742276434)
 
-#define WGS84_J2 \
-    (1.08262668e-3)
+#define WGS84_J2 (1.08262668e-3)
 
-#define WGS84_MIN_COS_LATITUDE \
-    (1.0e-12)
+#define WGS84_MIN_COS_LATITUDE (1.0e-12)
 
-#define WGS84_MIN_DENOMINATOR \
-    (1.0e-12)
+#define WGS84_MIN_DENOMINATOR (1.0e-12)
 
-#define WGS84_GRAVITY_ALTITUDE_LIMIT_M \
-    (100000.0)
+#define WGS84_GRAVITY_ALTITUDE_LIMIT_M (100000.0)
 
-static bool Wgs84_IsValidLatitude(double latitude_rad);
+static bool Wgs84_IsValidLatitude(float64_t latitude_rad);
 
-static double Wgs84_CalculateEccentricitySquared(
+static float64_t Wgs84_CalculateEccentricitySquared(
 		const Wgs84Ellipsoid_t *ellipsoid);
 
-static double Wgs84_CalculatePrimeVerticalRadius(
-		const Wgs84Ellipsoid_t *ellipsoid, double latitude_rad);
+static float64_t Wgs84_CalculatePrimeVerticalRadius(
+		const Wgs84Ellipsoid_t *ellipsoid, float64_t latitude_rad);
 
-static double Wgs84_CalculateMeridianRadius(const Wgs84Ellipsoid_t *ellipsoid,
-		double latitude_rad);
+static float64_t Wgs84_CalculateMeridianRadius(
+		const Wgs84Ellipsoid_t *ellipsoid, float64_t latitude_rad);
 
-static double Wgs84_CalculateNormalGravity(double latitude_rad);
+static float64_t Wgs84_CalculateNormalGravity(float64_t latitude_rad);
 
 void Wgs84_Init(Wgs84Ellipsoid_t *ellipsoid) {
 	if (ellipsoid != NULL) {
@@ -63,7 +55,7 @@ void Wgs84_Init(Wgs84Ellipsoid_t *ellipsoid) {
 }
 
 bool Wgs84_CalculateRadii(const Wgs84Ellipsoid_t *ellipsoid,
-		double latitude_rad, Wgs84Radii_t *radii) {
+		float64_t latitude_rad, Wgs84Radii_t *radii) {
 	bool status;
 
 	status = false;
@@ -83,10 +75,10 @@ bool Wgs84_CalculateRadii(const Wgs84Ellipsoid_t *ellipsoid,
 }
 
 bool Wgs84_CalculateGravity(const Wgs84Ellipsoid_t *ellipsoid,
-		double latitude_rad, double altitude_m, Wgs84Gravity_t *gravity) {
-	double surface_gravity;
-	double altitude_factor;
-	double radius_ratio;
+		float64_t latitude_rad, float64_t altitude_m, Wgs84Gravity_t *gravity) {
+	float64_t surface_gravity;
+	float64_t altitude_factor;
+	float64_t radius_ratio;
 
 	bool status;
 
@@ -119,21 +111,21 @@ bool Wgs84_CalculateGravity(const Wgs84Ellipsoid_t *ellipsoid,
 }
 
 bool Wgs84_CalculateAngularRates(const Wgs84Ellipsoid_t *ellipsoid,
-		double latitude_rad, double altitude_m,
+		float64_t latitude_rad, float64_t altitude_m,
 		const Vector3_t *velocity_ned_m_s, Wgs84AngularRates_t *rates) {
 	Wgs84Radii_t radii;
 
-	double sin_latitude;
-	double cos_latitude;
+	float64_t sin_latitude;
+	float64_t cos_latitude;
 
-	double velocity_north;
-	double velocity_east;
+	float64_t velocity_north;
+	float64_t velocity_east;
 
-	double earth_rate;
+	float64_t earth_rate;
 
-	double transport_north;
-	double transport_east;
-	double transport_down;
+	float64_t transport_north;
+	float64_t transport_east;
+	float64_t transport_down;
 
 	bool status;
 
@@ -212,12 +204,12 @@ bool Wgs84_CalculateAngularRates(const Wgs84Ellipsoid_t *ellipsoid,
 }
 
 bool Wgs84_CalculatePositionRate(const Wgs84Ellipsoid_t *ellipsoid,
-		double latitude_rad, double altitude_m,
+		float64_t latitude_rad, float64_t altitude_m,
 		const Vector3_t *velocity_ned_m_s,
 		GeodeticPositionRate_t *position_rate) {
 	Wgs84Radii_t radii;
 
-	double cos_latitude;
+	float64_t cos_latitude;
 
 	bool status;
 
@@ -251,14 +243,14 @@ bool Wgs84_CalculatePositionRate(const Wgs84Ellipsoid_t *ellipsoid,
 	return status;
 }
 
-static bool Wgs84_IsValidLatitude(double latitude_rad) {
+static bool Wgs84_IsValidLatitude(float64_t latitude_rad) {
 	return ((latitude_rad >= -1.5707963267948966)
 			&& (latitude_rad <= 1.5707963267948966));
 }
 
-static double Wgs84_CalculateEccentricitySquared(
+static float64_t Wgs84_CalculateEccentricitySquared(
 		const Wgs84Ellipsoid_t *ellipsoid) {
-	double eccentricity_squared;
+	float64_t eccentricity_squared;
 
 	eccentricity_squared = ellipsoid->flattening
 			* (2.0 - ellipsoid->flattening);
@@ -266,10 +258,10 @@ static double Wgs84_CalculateEccentricitySquared(
 	return eccentricity_squared;
 }
 
-static double Wgs84_CalculatePrimeVerticalRadius(
-		const Wgs84Ellipsoid_t *ellipsoid, double latitude_rad) {
-	double sin_latitude;
-	double denominator;
+static float64_t Wgs84_CalculatePrimeVerticalRadius(
+		const Wgs84Ellipsoid_t *ellipsoid, float64_t latitude_rad) {
+	float64_t sin_latitude;
+	float64_t denominator;
 
 	sin_latitude = sin(latitude_rad);
 
@@ -286,10 +278,10 @@ static double Wgs84_CalculatePrimeVerticalRadius(
 	return ellipsoid->semi_major_axis_m / denominator;
 }
 
-static double Wgs84_CalculateMeridianRadius(const Wgs84Ellipsoid_t *ellipsoid,
-		double latitude_rad) {
-	double sin_latitude;
-	double denominator;
+static float64_t Wgs84_CalculateMeridianRadius(
+		const Wgs84Ellipsoid_t *ellipsoid, float64_t latitude_rad) {
+	float64_t sin_latitude;
+	float64_t denominator;
 
 	sin_latitude = sin(latitude_rad);
 
@@ -308,11 +300,11 @@ static double Wgs84_CalculateMeridianRadius(const Wgs84Ellipsoid_t *ellipsoid,
 			/ (denominator * denominator * denominator);
 }
 
-static double Wgs84_CalculateNormalGravity(double latitude_rad) {
-	double sin_latitude;
-	double sin_squared;
-	double numerator;
-	double denominator;
+static float64_t Wgs84_CalculateNormalGravity(float64_t latitude_rad) {
+	float64_t sin_latitude;
+	float64_t sin_squared;
+	float64_t numerator;
+	float64_t denominator;
 
 	sin_latitude = sin(latitude_rad);
 

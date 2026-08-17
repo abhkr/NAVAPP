@@ -22,17 +22,17 @@
  * @brief WGS-84 ellipsoid parameters.
  */
 typedef struct {
-	double semi_major_axis_m;
-	double flattening;
-	double eccentricity_squared;
+	float64_t semi_major_axis_m;
+	float64_t flattening;
+	float64_t eccentricity_squared;
 } Wgs84Ellipsoid_t;
 
 /**
  * @brief Earth radii at a geodetic latitude.
  */
 typedef struct {
-	double prime_vertical_radius_m;
-	double meridian_radius_m;
+	float64_t prime_vertical_radius_m;
+	float64_t meridian_radius_m;
 } Wgs84Radii_t;
 
 /**
@@ -42,7 +42,7 @@ typedef struct {
  * acceleration magnitude.
  */
 typedef struct {
-	double gravity_m_s2;
+	float64_t gravity_m_s2;
 } Wgs84Gravity_t;
 
 /**
@@ -72,7 +72,7 @@ void Wgs84_Init(Wgs84Ellipsoid_t *ellipsoid);
  * @return true if calculation is valid.
  */
 bool Wgs84_CalculateRadii(const Wgs84Ellipsoid_t *ellipsoid,
-		double latitude_rad, Wgs84Radii_t *radii);
+		float64_t latitude_rad, Wgs84Radii_t *radii);
 
 /**
  * @brief Calculate normal gravity.
@@ -85,7 +85,7 @@ bool Wgs84_CalculateRadii(const Wgs84Ellipsoid_t *ellipsoid,
  * @return true if calculation is valid.
  */
 bool Wgs84_CalculateGravity(const Wgs84Ellipsoid_t *ellipsoid,
-		double latitude_rad, double altitude_m, Wgs84Gravity_t *gravity);
+		float64_t latitude_rad, float64_t altitude_m, Wgs84Gravity_t *gravity);
 
 /**
  * @brief Calculate Earth rotation and transport rates.
@@ -99,7 +99,7 @@ bool Wgs84_CalculateGravity(const Wgs84Ellipsoid_t *ellipsoid,
  * @return true if calculation is valid.
  */
 bool Wgs84_CalculateAngularRates(const Wgs84Ellipsoid_t *ellipsoid,
-		double latitude_rad, double altitude_m,
+		float64_t latitude_rad, float64_t altitude_m,
 		const Vector3_t *velocity_ned_m_s, Wgs84AngularRates_t *rates);
 
 /**
@@ -114,7 +114,7 @@ bool Wgs84_CalculateAngularRates(const Wgs84Ellipsoid_t *ellipsoid,
  * @return true if calculation is valid.
  */
 bool Wgs84_CalculatePositionRate(const Wgs84Ellipsoid_t *ellipsoid,
-		double latitude_rad, double altitude_m,
+		float64_t latitude_rad, float64_t altitude_m,
 		const Vector3_t *velocity_ned_m_s,
 		GeodeticPositionRate_t *position_rate);
 
