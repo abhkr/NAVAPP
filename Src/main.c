@@ -1,68 +1,179 @@
-/*
- * main.c
- *
- *  Created on: 07-Aug-2026
- *      Author: ngarm-ins
- */
-
+#include <stdbool.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
 
-#include "dcm.h"
-#include "matrix.h"
-#include "math_constants.h"
-#include "transform.h"
-#include "quaternion.h"
-#include "math_types.h"
+#include "ins_types.h"
+#include "navigation.h"
+#include "isr.h"
+
+static Navigation_t navigation;
+
+static InsMode_t ins_mode;
+
+static bool application_running;
+
+static bool Main_ReadCommand(InsCommand_t *command);
+
+static void Main_ExecuteCommand(InsCommand_t command);
+
+static void Main_ProcessInsMode(void);
 
 int main(void) {
-	uint8_t i, j;
-	EulerAngles_t euler;
-	EulerAngles_t euler2;
-	Matrix3_t dcm;
-//	Quaternion_t quat;
+	application_running = true;
 
-	double ang[3] = { 10.0, 89.0, -10.0 };
+	ins_mode = INS_MODE_STATIC_ALIGNMENT;
 
-	euler.yaw_rad = ang[0] * MATH_DEG_TO_RAD;
-	euler.pitch_rad = ang[1] * MATH_DEG_TO_RAD;
-	euler.roll_rad = ang[2] * MATH_DEG_TO_RAD;
+	Navigation_Init(&navigation);
 
-//	for (i = 0; i < 3; i++) {
-//		for (j = 0; j < 3; j++) {
-//			printf("%lf\t", dcm.m_data[i][j]);
-//		}
-//		printf("\n");
-//	}
+	Isr_Init(&navigation);
 
-	Transform_EulerToDcm(&euler, &dcm);
-	for (i = 0; i < 3; i++) {
-		for (j = 0; j < 3; j++) {
-			printf("%lf\t", dcm.m_data[i][j]);
+	/*
+	 * Hardware/timer configuration will
+	 * eventually enable:
+	 *
+	 * IMU : 2.5 ms
+	 * GPS : 1 s
+	 * 1553B : event driven
+	 */
+
+	while (application_running == true) {
+		InsCommand_t command;
+
+		/*
+		 * User command processing.
+		 */
+		if (Main_ReadCommand(&command) == true) {
+			Main_ExecuteCommand(command);
 		}
-		printf("\n");
+
+		/*
+		 * Run selected INS mode.
+		 */
+		Main_ProcessInsMode();
+
+		/*
+		 * Process GPS/1553B events here
+		 * rather than in their ISRs.
+		 */
 	}
 
-	Transform_DcmToEuler(&dcm, &euler2);
-
-//	Euler_FromDcm_stp(&dcm, &euler2);
-
-	printf("SI - %lf\n", euler2.yaw_rad * MATH_RAD_TO_DEG);
-	printf("THETA - %lf\n", euler2.pitch_rad * MATH_RAD_TO_DEG);
-	printf("PHI - %lf\n", euler2.roll_rad * MATH_RAD_TO_DEG);
-
-//	Transform_DcmToQuaternion(&dcm, &quat);
-//	printf("q = %lf,%lf,%lf,%lf\n", quat.w, quat.x, quat.y, quat.z);
-//
-//	Transform_EulerToQuaternion(&euler, &quat);
-//	printf("q = %lf,%lf,%lf,%lf\n", quat.w, quat.x, quat.y, quat.z);
-//
-//	Transform_QuaternionToEuler(&quat, &euler2);
-//
-//	printf("SI - %lf\n", euler2.yaw_rad * MATH_RAD_TO_DEG);
-//	printf("THETA - %lf\n", euler2.pitch_rad * MATH_RAD_TO_DEG);
-//	printf("PHI - %lf\n", euler2.roll_rad * MATH_RAD_TO_DEG);
-
 	return 0;
+}
+
+static void Main_ProcessInsMode(void) {
+	switch (ins_mode) {
+	case INS_MODE_STATIC_ALIGNMENT:
+
+//		StaticAlignment_Run(&navigation);
+
+		break;
+
+	case INS_MODE_TRANSFER_ALIGNMENT:
+
+//		TransferAlignment_Run(&navigation);
+
+		break;
+
+	case INS_MODE_NAVIGATION:
+
+//		HybridNavigation_Run(&navigation);
+
+		break;
+
+	default:
+
+		break;
+	}
+}
+
+static bool Main_ReadCommand(InsCommand_t *command) {
+	int input;
+	bool valid;
+
+	valid = false;
+
+	if (command != NULL) {
+		printf("\n");
+		printf("INS COMMAND\n");
+		printf("-----------\n");
+		printf("1 - Static Alignment\n");
+		printf("2 - Transfer Alignment\n");
+		printf("3 - Navigation\n");
+		printf("4 - Exit\n");
+		printf("Select: ");
+
+		input = getchar();
+
+		while (getchar() != '\n') {
+			/* Discard remaining input. */
+		}
+
+		switch (input) {
+		case '1':
+			*command = INS_COMMAND_STATIC_ALIGNMENT;
+			valid = true;
+			break;
+
+		case '2':
+			*command = INS_COMMAND_TRANSFER_ALIGNMENT;
+			valid = true;
+			break;
+
+		case '3':
+			*command = INS_COMMAND_NAVIGATION;
+			valid = true;
+			break;
+
+		case '4':
+			*command = INS_COMMAND_EXIT;
+			valid = true;
+			break;
+
+		default:
+			*command = INS_COMMAND_NONE;
+			break;
+		}
+	}
+
+	return valid;
+}
+
+static void Main_ExecuteCommand(InsCommand_t command) {
+	switch (command) {
+	case INS_COMMAND_STATIC_ALIGNMENT:
+
+		ins_mode = INS_MODE_STATIC_ALIGNMENT;
+
+		printf("INS: Static Alignment\n");
+
+		break;
+
+	case INS_COMMAND_TRANSFER_ALIGNMENT:
+
+		ins_mode = INS_MODE_TRANSFER_ALIGNMENT;
+
+		printf("INS: Transfer Alignment\n");
+
+		break;
+
+	case INS_COMMAND_NAVIGATION:
+
+		ins_mode = INS_MODE_NAVIGATION;
+
+		printf("INS: Navigation\n");
+
+		break;
+
+	case INS_COMMAND_EXIT:
+
+		application_running =
+		false;
+
+		break;
+
+	case INS_COMMAND_NONE:
+
+	default:
+
+		break;
+	}
 }

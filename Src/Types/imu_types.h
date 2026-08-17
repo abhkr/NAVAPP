@@ -12,6 +12,7 @@
 #include <stdint.h>
 
 #include "vector3.h"
+#include "imu_types.h"
 
 /**
  * @brief Raw IMU measurement.

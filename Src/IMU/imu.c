@@ -17,7 +17,6 @@ void Imu_Init(Imu_t *imu) {
 
 		Vector3_Zero(&imu->measurement.gyro_rad_s);
 		Vector3_Zero(&imu->measurement.accel_m_s2);
-		imu->measurement.timestamp_s = 0.0;
 		imu->measurement.valid = false;
 
 		imu->initialized = true;
@@ -47,8 +46,6 @@ SensorStatus_t Imu_Process(Imu_t *imu, const ImuRawData_t *raw_data) {
 
 	ImuCalibration_ApplyAccel(&imu->calibration, &raw_accel,
 			&imu->measurement.accel_m_s2);
-
-	imu->measurement.timestamp_s = ((double) raw_data->timestamp_us) * 1.0e-6;
 
 	imu->measurement.valid = true;
 

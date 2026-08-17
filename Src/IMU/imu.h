@@ -12,18 +12,7 @@
 
 #include "imu_calibration.h"
 #include "sensor_types.h"
-
-/**
- * @brief Processed IMU measurement.
- */
-typedef struct {
-	Vector3_t gyro_rad_s;
-	Vector3_t accel_m_s2;
-
-	double timestamp_s;
-
-	bool valid;
-} ImuMeasurement_t;
+#include "imu_types.h"
 
 /**
  * @brief IMU sensor object.
