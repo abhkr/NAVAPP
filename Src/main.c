@@ -20,7 +20,7 @@ static void Main_ProcessInsMode(void);
 int main(void) {
 	application_running = true;
 
-	ins_mode = INS_MODE_STATIC_ALIGNMENT;
+	ins_mode = INS_MODE_IDLE;
 
 	Navigation_Init(&navigation);
 
