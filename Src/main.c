@@ -14,6 +14,7 @@
 #include "math_constants.h"
 #include "transform.h"
 #include "quaternion.h"
+#include "math_types.h"
 
 int main(void) {
 	uint8_t i, j;
@@ -28,12 +29,12 @@ int main(void) {
 	euler.pitch_rad = ang[1] * MATH_DEG_TO_RAD;
 	euler.roll_rad = ang[2] * MATH_DEG_TO_RAD;
 
-	for (i = 0; i < 3; i++) {
-		for (j = 0; j < 3; j++) {
-			printf("%lf\t", dcm.m_data[i][j]);
-		}
-		printf("\n");
-	}
+//	for (i = 0; i < 3; i++) {
+//		for (j = 0; j < 3; j++) {
+//			printf("%lf\t", dcm.m_data[i][j]);
+//		}
+//		printf("\n");
+//	}
 
 	Transform_EulerToDcm(&euler, &dcm);
 	for (i = 0; i < 3; i++) {

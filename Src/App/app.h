@@ -11,9 +11,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "../IMU/imu.h"
-#include "gps.h"
-#include "navigation.h"
+#include "imu.h"
 
 /**
  * @brief Application operating mode.
@@ -45,11 +43,11 @@ typedef struct {
 	AppEvents_t events;
 
 	ImuMeasurement_t imu_measurement;
-	GpsMeasurement_t gps_measurement;
+//	GpsMeasurement_t gps_measurement;
 
 	NavigationSolution_t navigation_solution;
 
-	Navigation_t navigation;
+//	Navigation_t navigation;
 
 	bool initialized;
 } App_t;
