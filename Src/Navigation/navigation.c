@@ -22,8 +22,6 @@ static bool Navigation_ProcessImuSamples(Navigation_t *navigation,
 static void Navigation_CalculateImuAverage(const Navigation_t *navigation,
 		Vector3_t *gyro_average, Vector3_t *accel_average);
 
-static void Navigation_ResetImuSampleCount(Navigation_t *navigation);
-
 void Navigation_Init(Navigation_t *navigation) {
 	if (navigation != NULL) {
 		Position_Init(&navigation->position);
@@ -78,7 +76,7 @@ bool Navigation_ImuIsr(Navigation_t *navigation, const ImuMeasurement_t *sample)
 					Navigation_Update(navigation, &imu);
 				}
 
-				Navigation_ResetImuSampleCount(navigation);
+				navigation->imu_sample_count = 0U;
 			}
 		}
 	}
@@ -237,6 +235,3 @@ static void Navigation_ClearImuBuffer(Navigation_t *navigation) {
 	}
 }
 
-static void Navigation_ResetImuSampleCount(Navigation_t *navigation) {
-	navigation->imu_sample_count = 0U;
-}
