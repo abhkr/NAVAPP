@@ -14,88 +14,101 @@
 #include "imu_types.h"
 #include "navigation_types.h"
 
-#define NAVIGATION_IMU_SAMPLE_COUNT       (4U)
-
-#define NAVIGATION_IMU_SAMPLE_PERIOD_S    (0.0025)
-
-#define NAVIGATION_UPDATE_PERIOD_S        (0.0100)
-
-/**
- * @brief Navigation system state.
+/*
+ * Four IMU samples are received at 2.5 ms intervals.
+ * One navigation update is therefore performed every 10 ms.
  */
-typedef struct {
-	NavigationPosition_t position;
+#define NAVIGATION_IMU_SAMPLE_COUNT    (4U)
 
-	NavigationVelocity_t velocity;
+#define NAVIGATION_UPDATE_PERIOD_S     (0.010)
+#define NAVIGATION_IMU_SAMPLE_PERIOD_S (0.0025)
 
-	NavigationAttitude_t attitude;
+#define CONE_K1             (214.0 / 105.0)
+#define CONE_K2             (92.0  / 105.0)
+#define CONE_K3             (54.0  / 105.0)
 
-	NavigationGravity_t gravity;
+#define SCULL_K1_THETA      (54.0  / 105.0)
+#define SCULL_K2_THETA      (92.0  / 105.0)
+#define SCULL_K3_THETA      (214.0 / 105.0)
 
-	NavigationEarthRate_t earth_rate;
+#define SCULL_K1_V          (54.0  / 105.0)
+#define SCULL_K2_V          (29.0  / 105.0)
+#define SCULL_K3_V          (214.0 / 105.0)
 
-	NavigationTransportRate_t transport_rate;
+void Navigation_Coning_Compensate(const ImuMeasurement_t samples[4],
+		ImuMeasurement_t *corrected);
 
-	/*
-	 * IMU sample accumulation.
-	 */
-	ImuMeasurement_t imu_samples[NAVIGATION_IMU_SAMPLE_COUNT];
-
-	uint32_t imu_sample_count;
-
-	bool initialized;
-
-} Navigation_t;
+void Navigation_Sculling_Compensate(const ImuMeasurement_t samples[4],
+		ImuMeasurement_t *corrected);
 
 /**
- * @brief Initialize navigation system.
+ * @brief Initialize the navigation solution.
+ *
+ * Initializes position, velocity, attitude, gravity,
+ * Earth rotation and IMU sample buffers.
  *
  * @param navigation Pointer to navigation state.
  */
-void Navigation_Init(Navigation_t *navigation);
+void Navigation_Init_From_Mdl(const NavigationMdl_t *mdl_data,
+		Navigation_t *navigation, NavigationSolution_t *solution);
 
 /**
  * @brief Process one IMU sample.
  *
- * This function is called at 400 Hz.
+ * This function is called every 2.5 ms from the IMU ISR.
  *
- * Four samples are accumulated and the navigation
- * solution is propagated at 100 Hz.
+ * Four consecutive IMU samples are accumulated and averaged.
+ * Navigation mechanization is executed after the fourth sample.
  *
  * @param navigation Pointer to navigation state.
- * @param sample Pointer to IMU measurement.
- *
- * @return true when a navigation update is completed.
- * @return false otherwise.
+ * @param imu Pointer to IMU measurement.
  */
-bool Navigation_ImuIsr(Navigation_t *navigation, const ImuMeasurement_t *sample);
+void Navigation_ImuUpdate(Navigation_t *navigation, const ImuMeasurement_t *imu);
 
 /**
- * @brief Perform one navigation propagation update.
+ * @brief Execute one complete INS mechanization update.
+ *
+ * Update sequence:
+ *
+ * 1. IMU preprocessing
+ * 2. Gravity
+ * 3. Earth/transport rates
+ * 4. Attitude
+ * 5. Velocity
+ * 6. Position
+ *
+ * This function is normally called every 10 ms.
  *
  * @param navigation Pointer to navigation state.
- * @param imu Pointer to processed IMU increment.
  */
-void Navigation_Update(Navigation_t *navigation,
-		const NavigationImuIncrement_t *imu);
+void Navigation_Update(Navigation_t *navigation);
 
 /**
  * @brief Get the current navigation solution.
  *
  * @param navigation Pointer to navigation state.
- * @param solution Pointer to output solution.
+ * @param solution Pointer to output navigation solution.
+ *
+ * @return true if solution is valid.
+ * @return false otherwise.
  */
-void Navigation_GetSolution(const Navigation_t *navigation,
+bool Navigation_GetSolution(const Navigation_t *navigation,
 		NavigationSolution_t *solution);
 
 /**
- * @brief Check navigation initialization state.
+ * @brief Check whether a new 10 ms navigation solution is available.
  *
  * @param navigation Pointer to navigation state.
  *
- * @return true if initialized.
- * @return false otherwise.
+ * @return true if a new solution is available.
  */
-bool Navigation_IsInitialized(const Navigation_t *navigation);
+bool Navigation_IsUpdateAvailable(const Navigation_t *navigation);
+
+/**
+ * @brief Clear the navigation update flag.
+ *
+ * @param navigation Pointer to navigation state.
+ */
+void Navigation_ClearUpdateFlag(Navigation_t *navigation);
 
 #endif /* NAVIGATION_NAVIGATION_H_ */

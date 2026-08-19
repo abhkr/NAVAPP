@@ -1,237 +1,765 @@
-/*
- * navigation.c
- *
- *  Created on: 17-Aug-2026
- *      Author: ngarm-ins
- */
-
 #include "navigation.h"
 
+#include <math.h>
 #include <stddef.h>
 
-#include "attitude.h"
-#include "gravity.h"
-#include "position.h"
-#include "velocity.h"
+#include "dcm.h"
+#include "quaternion.h"
+#include "transform.h"
 
-static void Navigation_ClearImuBuffer(Navigation_t *navigation);
+///* ==========================================================================
+// * Constants
+// * ========================================================================== */
+//
+//#define NAVIGATION_PI                 (3.14159265358979323846)
+//
+//#define NAVIGATION_DEG_TO_RAD		(NAVIGATION_PI / 180.0)
+//
+//#define NAVIGATION_RAD_TO_DEG     (180.0 / NAVIGATION_PI)
+//
+///*
+// * WGS-84 parameters.
+// */
+//#define NAVIGATION_EARTH_SEMI_MAJOR_M (6378137.0)
+//
+//#define NAVIGATION_EARTH_FLATTENING   (1.0 / 298.257223563)
+//
+//#define NAVIGATION_EARTH_ROTATION_RAD_S (7.2921150e-5)
+//
+//#define NAVIGATION_EARTH_ECCENTRICITY_SQ (6.6943799901413165e-3)
+//
+/* ==========================================================================
+ * Private function declarations
+ * ========================================================================== */
 
-static bool Navigation_ProcessImuSamples(Navigation_t *navigation,
-		NavigationImuIncrement_t *imu);
+static void Navigation_ResetImuBuffer(Navigation_t *navigation);
+//
+//static void Navigation_AverageImuSamples(Navigation_t *navigation,
+//		ImuMeasurement_t *average);
+//
+//static void Navigation_PreprocessImu(Navigation_t *navigation,
+//		const ImuMeasurement_t *imu);
+//
+//static void Navigation_UpdateGravity(Navigation_t *navigation);
+//
+//static void Navigation_UpdateEarthRate(Navigation_t *navigation);
+//
+//static void Navigation_UpdateTransportRate(Navigation_t *navigation);
+//
+//static void Navigation_UpdateAttitude(Navigation_t *navigation);
+//
+//static void Navigation_UpdateVelocity(Navigation_t *navigation);
+//
+//static void Navigation_UpdatePosition(Navigation_t *navigation);
+//
+//static void Navigation_UpdateRadii(Navigation_t *navigation);
+//
+/* ==========================================================================
+ * Initialization
+ * ========================================================================== */
 
-static void Navigation_CalculateImuAverage(const Navigation_t *navigation,
-		Vector3_t *gyro_average, Vector3_t *accel_average);
+void Navigation_Init_From_Mdl(const NavigationMdl_t *mdl_data,
+		Navigation_t *navigation, NavigationSolution_t *solution) {
 
-void Navigation_Init(Navigation_t *navigation) {
 	if (navigation != NULL) {
-		Position_Init(&navigation->position);
+		Navigation_ResetImuBuffer(navigation);
 
-		Velocity_Init(&navigation->velocity);
+		navigation->rcnt = 0U;
 
-		Attitude_Init(&navigation->attitude);
+		/* Initialize INS Position */
+		solution->position.latitude_rad = mdl_data->position.latitude_rad;
+		solution->position.longitude_rad = mdl_data->position.longitude_rad;
+		solution->position.altitude_m = mdl_data->position.altitude_m;
 
-		Gravity_Init(&navigation->gravity);
+		/* Initialize INS Velocity */
+		solution->velocity.north_m_s = mdl_data->velocity.north_m_s;
+		solution->velocity.east_m_s = mdl_data->velocity.east_m_s;
+		solution->velocity.down_m_s = mdl_data->velocity.down_m_s;
 
-		navigation->earth_rate.earth_rate_ned_rad_s.x = 0.0;
+		/* Initialize Attitude */
+		solution->attitude.euler.yaw_rad = mdl_data->attitude.euler.yaw_rad;
+		solution->attitude.euler.pitch_rad = mdl_data->attitude.euler.pitch_rad;
+		solution->attitude.euler.roll_rad = mdl_data->attitude.euler.roll_rad;
 
-		navigation->earth_rate.earth_rate_ned_rad_s.y = 0.0;
+		/* Initialize Quaternion - Ned 2 Body */
+		Transform_EulerToQuaternion(&mdl_data->attitude.euler,
+				&solution->quaternion);
 
-		navigation->earth_rate.earth_rate_ned_rad_s.z = 0.0;
-
-		navigation->transport_rate.transport_rate_ned_rad_s.x = 0.0;
-
-		navigation->transport_rate.transport_rate_ned_rad_s.y = 0.0;
-
-		navigation->transport_rate.transport_rate_ned_rad_s.z = 0.0;
-
-		Navigation_ClearImuBuffer(navigation);
-
-		Gravity_Update(&navigation->gravity, &navigation->position);
-
-		navigation->initialized = true;
 	}
 }
 
-bool Navigation_ImuIsr(Navigation_t *navigation, const ImuMeasurement_t *sample) {
-	NavigationImuIncrement_t imu;
-	bool update_ready;
+///* ==========================================================================
+// * IMU processing
+// * ========================================================================== */
+//
+//void Navigation_ImuUpdate(Navigation_t *navigation, const ImuMeasurement_t *imu) {
+//	if ((navigation != NULL) && (imu != NULL)
+//			&& (navigation->initialized == true)) {
+//		if (navigation->imu_sample_count <
+//		NAVIGATION_IMU_SAMPLE_COUNT) {
+//			navigation->imu_samples[navigation->imu_sample_count] = *imu;
+//
+//			navigation->imu_sample_count++;
+//		}
+//
+//		/*
+//		 * Four samples correspond to 10 ms.
+//		 */
+//		if (navigation->imu_sample_count >=
+//		NAVIGATION_IMU_SAMPLE_COUNT) {
+//			ImuMeasurement_t average_imu;
+//
+//			Navigation_AverageImuSamples(navigation, &average_imu);
+//
+//			Navigation_PreprocessImu(navigation, &average_imu);
+//
+//			Navigation_Update(navigation);
+//
+//			Navigation_ResetImuBuffer(navigation);
+//		}
+//	}
+//}
+//
+///* ==========================================================================
+// * Complete INS mechanization
+// * ========================================================================== */
+//
+//void Navigation_Update(Navigation_t *navigation) {
+//	if ((navigation != NULL) && (navigation->initialized == true)) {
+//		/*
+//		 * Update Earth model first because gravity,
+//		 * Earth rate and transport rate depend on position
+//		 * and velocity.
+//		 */
+//		Navigation_UpdateRadii(navigation);
+//
+//		Navigation_UpdateGravity(navigation);
+//
+//		Navigation_UpdateEarthRate(navigation);
+//
+//		Navigation_UpdateTransportRate(navigation);
+//
+//		/*
+//		 * INS mechanization.
+//		 *
+//		 * The attitude is updated first because the updated
+//		 * attitude is required to transform specific force
+//		 * from body frame to navigation frame.
+//		 */
+//		Navigation_UpdateAttitude(navigation);
+//
+//		Navigation_UpdateVelocity(navigation);
+//
+//		Navigation_UpdatePosition(navigation);
+//
+//		navigation->update_available = true;
+//	}
+//}
+//
+//void Navigation_Coning_Compensate(const ImuMeasurement_t samples[4],
+//		ImuMeasurement_t *corrected) {
+//	Vector3_t dth01;
+//	Vector3_t dth12;
+//	Vector3_t dth23;
+//	Vector3_t dth02;
+//	Vector3_t dth13;
+//	Vector3_t dth03;
+//	Vector3_t temp;
+//
+//	Vector3_Cross(&samples[0].gyro_rad_delt, &samples[1].gyro_rad_delt, &dth01);
+//	Vector3_Cross(&samples[1].gyro_rad_delt, &samples[2].gyro_rad_delt, &dth12);
+//	Vector3_Cross(&samples[2].gyro_rad_delt, &samples[3].gyro_rad_delt, &dth23);
+//	Vector3_Cross(&samples[0].gyro_rad_delt, &samples[2].gyro_rad_delt, &dth02);
+//	Vector3_Cross(&samples[1].gyro_rad_delt, &samples[3].gyro_rad_delt, &dth13);
+//	Vector3_Cross(&samples[0].gyro_rad_delt, &samples[3].gyro_rad_delt, &dth03);
+//
+//	Vector3_Scale(&dth03, CONE_K1, &corrected->gyro_rad_delt);
+//
+//	Vector3_Add(&dth02, &dth13, &temp);
+//	Vector3_Scale(&temp, CONE_K2, &temp);
+//
+//	Vector3_Add(&corrected->gyro_rad_delt, &temp, &corrected->gyro_rad_delt);
+//
+//	Vector3_Add(&dth01, &dth12, &temp);
+//	Vector3_Add(&temp, &dth23, &temp);
+//	Vector3_Scale(&temp, CONE_K3, &temp);
+//
+//	Vector3_Add(&corrected->gyro_rad_delt, &temp, &corrected->gyro_rad_delt);
+//
+//	Vector3_Add(&corrected->gyro_rad_delt, &samples[0].gyro_rad_delt,
+//			&corrected->gyro_rad_delt);
+//	Vector3_Add(&corrected->gyro_rad_delt, &samples[1].gyro_rad_delt,
+//			&corrected->gyro_rad_delt);
+//	Vector3_Add(&corrected->gyro_rad_delt, &samples[2].gyro_rad_delt,
+//			&corrected->gyro_rad_delt);
+//	Vector3_Add(&corrected->gyro_rad_delt, &samples[3].gyro_rad_delt,
+//			&corrected->gyro_rad_delt);
+//}
+//
+//void Navigation_Sculling_Compensate(const ImuMeasurement_t samples[4],
+//		ImuMeasurement_t *corrected) {
+//	Vector3_t theta_term;
+//	Vector3_t velocity_term;
+//	Vector3_t scull;
+//
+//	Vector3_t temp;
+//
+//	Vector3_Scale(&samples[0].gyro_rad_delt, SCULL_K1_THETA, &theta_term);
+//	Vector3_Scale(&samples[1].gyro_rad_delt, SCULL_K2_THETA, &temp);
+//	Vector3_Add(&theta_term, &temp, &theta_term);
+//	Vector3_Scale(&samples[2].gyro_rad_delt, SCULL_K3_THETA, &temp);
+//	Vector3_Add(&theta_term, &temp, &theta_term);
+//
+//	Vector3_Scale(&samples[0].accel_m_s_delt, SCULL_K1_V, &velocity_term);
+//	Vector3_Scale(&samples[1].accel_m_s_delt, SCULL_K2_V, &temp);
+//	Vector3_Add(&velocity_term, &temp, &velocity_term);
+//	Vector3_Scale(&samples[2].accel_m_s_delt, SCULL_K3_V, &temp);
+//	Vector3_Add(&velocity_term, &temp, &velocity_term);
+//
+//	Vector3_Cross(&theta_term, &samples[3].accel_m_s_delt, &scull);
+//	Vector3_Cross(&velocity_term, &samples[3].gyro_rad_delt, &temp);
+//
+//	Vector3_Add(&scull, &temp, &corrected->accel_m_s_delt);
+//}
+//
+///* ==========================================================================
+// * IMU sample averaging
+// * ========================================================================== */
+//
+////static void Navigation_AverageImuSamples(Navigation_t *navigation,
+////		ImuMeasurement_t *average) {
+////	uint32_t index;
+////	double gyro_x;
+////	double gyro_y;
+////	double gyro_z;
+////
+////	double accel_x;
+////	double accel_y;
+////	double accel_z;
+////
+////	gyro_x = 0.0;
+////	gyro_y = 0.0;
+////	gyro_z = 0.0;
+////
+////	accel_x = 0.0;
+////	accel_y = 0.0;
+////	accel_z = 0.0;
+////
+////	if ((navigation != NULL) && (average != NULL)) {
+////		for (index = 0U; index < NAVIGATION_IMU_SAMPLE_COUNT; index++) {
+////			gyro_x += navigation->imu_samples[index].gyro_rad_delt.x;
+////
+////			gyro_y += navigation->imu_samples[index].gyro_rad_delt.y;
+////
+////			gyro_z += navigation->imu_samples[index].gyro_rad_delt.z;
+////
+////			accel_x += navigation->imu_samples[index].accel_m_s_delt.x;
+////
+////			accel_y += navigation->imu_samples[index].accel_m_s_delt.y;
+////
+////			accel_z += navigation->imu_samples[index].accel_m_s_delt.z;
+////		}
+////		average->gyro.x_rad_s = gyro_x / (double) NAVIGATION_IMU_SAMPLE_COUNT;
+////
+////		average->gyro.y_rad_s = gyro_y / (double) NAVIGATION_IMU_SAMPLE_COUNT;
+////
+////		average->gyro.z_rad_s = gyro_z / (double) NAVIGATION_IMU_SAMPLE_COUNT;
+////
+////		average->accelerometer.x_m_s2 = accel_x
+////				/ (double) NAVIGATION_IMU_SAMPLE_COUNT;
+////
+////		average->accelerometer.y_m_s2 = accel_y
+////				/ (double) NAVIGATION_IMU_SAMPLE_COUNT;
+////
+////		average->accelerometer.z_m_s2 = accel_z
+////				/ (double) NAVIGATION_IMU_SAMPLE_COUNT;
+////}
+///* ==========================================================================
+// * IMU preprocessing
+// * ========================================================================== */
+//
+//static void Navigation_PreprocessImu(Navigation_t *navigation,
+//		const ImuMeasurement_t *imu) {
+//	if ((navigation != NULL) && (imu != NULL)) {
+//		/*
+//		 * At this stage the IMU data is already averaged.
+//		 *
+//		 * Sensor bias compensation, scale-factor correction,
+//		 * misalignment correction and coning/sculling corrections
+//		 * can be added here.
+//		 *
+//		 * For now:
+//		 *
+//		 * delta_angle = gyro * dt
+//		 * delta_velocity = accelerometer * dt
+//		 */
+//
+//		navigation->body_delta_angle.x_rad = imu->gyro_rad_delt.x *
+//		NAVIGATION_UPDATE_PERIOD_S;
+//
+//		navigation->body_delta_angle.y_rad = imu->gyro_rad_delt.y *
+//		NAVIGATION_UPDATE_PERIOD_S;
+//
+//		navigation->body_delta_angle.z_rad = imu->gyro_rad_delt.z *
+//		NAVIGATION_UPDATE_PERIOD_S;
+//
+//		navigation->body_delta_velocity.x_m_s = imu->accel_m_s_delt.x *
+//		NAVIGATION_UPDATE_PERIOD_S;
+//
+//		navigation->body_delta_velocity.y_m_s = imu->accel_m_s_delt.y *
+//		NAVIGATION_UPDATE_PERIOD_S;
+//
+//		navigation->body_delta_velocity.z_m_s = imu->accel_m_s_delt.z *
+//		NAVIGATION_UPDATE_PERIOD_S;
+//	}
+//}
+//
+///* ==========================================================================
+// * Earth model
+// * ========================================================================== */
+//
+//static void Navigation_UpdateRadii(Navigation_t *navigation) {
+//	double sin_lat;
+//	double denominator;
+//
+//	double latitude;
+//
+//	if (navigation != NULL) {
+//		latitude = navigation->position.latitude_rad;
+//
+//		sin_lat = sin(latitude);
+//
+//		denominator = sqrt(
+//				1.0 - (NAVIGATION_EARTH_ECCENTRICITY_SQ * sin_lat * sin_lat));
+//
+//		navigation->radii.transverse_m =
+//		NAVIGATION_EARTH_SEMI_MAJOR_M / denominator;
+//
+//		navigation->radii.meridian_m = (NAVIGATION_EARTH_SEMI_MAJOR_M * (1.0 -
+//		NAVIGATION_EARTH_ECCENTRICITY_SQ))
+//				/ (denominator * denominator * denominator);
+//	}
+//}
+//
+///* ==========================================================================
+// * Gravity
+// * ========================================================================== */
+//
+//static void Navigation_UpdateGravity(Navigation_t *navigation) {
+//	double latitude;
+//	double altitude;
+//
+//	double sin_lat;
+//	double sin_lat_sq;
+//
+//	double gravity_magnitude;
+//
+//	if (navigation != NULL) {
+//		latitude = navigation->position.latitude_rad;
+//
+//		altitude = navigation->position.altitude_m;
+//
+//		sin_lat = sin(latitude);
+//
+//		sin_lat_sq = sin_lat * sin_lat;
+//
+//		/*
+//		 * Normal gravity approximation.
+//		 */
+//		gravity_magnitude = 9.7803253359
+//				* (1.0 + (0.00193185265241 * sin_lat_sq))
+//				/ sqrt(1.0 - (NAVIGATION_EARTH_ECCENTRICITY_SQ * sin_lat_sq));
+//
+//		/*
+//		 * Simple altitude correction.
+//		 */
+//		gravity_magnitude *= 1.0 - ((2.0 * altitude) /
+//		NAVIGATION_EARTH_SEMI_MAJOR_M);
+//
+//		navigation->gravity.north_m_s2 = 0.0;
+//
+//		navigation->gravity.east_m_s2 = 0.0;
+//
+//		/*
+//		 * NED convention:
+//		 * Down is positive.
+//		 */
+//		navigation->gravity.down_m_s2 = gravity_magnitude;
+//	}
+//}
+//
+///* ==========================================================================
+// * Earth rotation rate
+// * ========================================================================== */
+//
+//static void Navigation_UpdateEarthRate(Navigation_t *navigation) {
+//	double latitude;
+//
+//	if (navigation != NULL) {
+//		latitude = navigation->position.latitude_rad;
+//
+//		navigation->earth_rate.north_rad_s =
+//		NAVIGATION_EARTH_ROTATION_RAD_S * cos(latitude);
+//
+//		navigation->earth_rate.east_rad_s = 0.0;
+//
+//		navigation->earth_rate.down_rad_s = -NAVIGATION_EARTH_ROTATION_RAD_S
+//				* sin(latitude);
+//	}
+//}
+//
+///* ==========================================================================
+// * Transport rate
+// * ========================================================================== */
+//
+//static void Navigation_UpdateTransportRate(Navigation_t *navigation) {
+//	double latitude;
+//	double altitude;
+//
+//	double velocity_north;
+//	double velocity_east;
+//
+//	double radius_meridian;
+//	double radius_transverse;
+//
+//	double cos_latitude;
+//
+//	if (navigation != NULL) {
+//		latitude = navigation->position.latitude_rad;
+//
+//		altitude = navigation->position.altitude_m;
+//
+//		velocity_north = navigation->velocity.north_m_s;
+//
+//		velocity_east = navigation->velocity.east_m_s;
+//
+//		radius_meridian = navigation->radii.meridian_m;
+//
+//		radius_transverse = navigation->radii.transverse_m;
+//
+//		cos_latitude = cos(latitude);
+//
+//		navigation->transport_rate.north_rad_s = velocity_east
+//				/ (radius_transverse + altitude);
+//
+//		navigation->transport_rate.east_rad_s = -velocity_north
+//				/ (radius_meridian + altitude);
+//
+//		navigation->transport_rate.down_rad_s = -(velocity_east * tan(latitude))
+//				/ (radius_transverse + altitude);
+//
+//		/*
+//		 * Avoid numerical problems at the poles.
+//		 */
+//		if (fabs(cos_latitude) < 1.0e-8) {
+//			navigation->transport_rate.north_rad_s = 0.0;
+//			navigation->transport_rate.down_rad_s = 0.0;
+//		}
+//	}
+//}
+//
+///* ==========================================================================
+// * Attitude update
+// *
+// * Quaternion represents rotation from NED to body frame.
+// *
+// * q_NED_to_BODY
+// *
+// * With frame-rotation convention, the incremental body-frame
+// * rotation is post-multiplied:
+// *
+// * q_new = q_old * dq
+// * ========================================================================== */
+//
+//static void Navigation_UpdateAttitude(Navigation_t *navigation) {
+//	double p;
+//	double q;
+//	double r;
+//
+//	double dq0;
+//	double dq1;
+//	double dq2;
+//	double dq3;
+//
+//	double half_angle;
+//
+//	Quaternion_t delta_quaternion;
+//	Quaternion_t updated_quaternion;
+//
+//	if (navigation != NULL) {
+//		/*
+//		 * Body angular increment.
+//		 */
+//		p = navigation->body_delta_angle.x_rad;
+//
+//		q = navigation->body_delta_angle.y_rad;
+//
+//		r = navigation->body_delta_angle.z_rad;
+//
+//		/*
+//		 * Small-angle incremental quaternion.
+//		 *
+//		 * For normal 10 ms INS operation this approximation
+//		 * is appropriate for small angular increments.
+//		 */
+//		half_angle = 0.5 * sqrt((p * p) + (q * q) + (r * r));
+//
+//		if (half_angle < 1.0e-12) {
+//			dq0 = 1.0;
+//			dq1 = 0.5 * p;
+//			dq2 = 0.5 * q;
+//			dq3 = 0.5 * r;
+//		} else {
+//			double scale;
+//
+//			scale = sin(half_angle) / half_angle;
+//
+//			dq0 = cos(half_angle);
+//
+//			dq1 = 0.5 * p * scale;
+//
+//			dq2 = 0.5 * q * scale;
+//
+//			dq3 = 0.5 * r * scale;
+//		}
+//
+//		delta_quaternion.w = dq0;
+//		delta_quaternion.x = dq1;
+//		delta_quaternion.y = dq2;
+//		delta_quaternion.z = dq3;
+//
+//		/*
+//		 * IMPORTANT:
+//		 *
+//		 * q_NED_to_BODY(new)
+//		 *
+//		 *     = q_NED_to_BODY(old)
+//		 *       * q_BODY_to_BODY_NEW
+//		 *
+//		 * Therefore the incremental quaternion is
+//		 * post-multiplied.
+//		 */
+//		Quaternion_Multiply(&navigation->attitude_quaternion, &delta_quaternion,
+//				&updated_quaternion);
+//
+//		Quaternion_Normalize(&updated_quaternion);
+//
+//		navigation->attitude_quaternion = updated_quaternion;
+//
+//		/*
+//		 * Convert quaternion to Euler angles for
+//		 * monitoring/output.
+//		 */
+////		Euler_FromQuaternion(&navigation->attitude_quaternion,
+////				&navigation->attitude.roll_rad, &navigation->attitude.pitch_rad,
+////				&navigation->attitude.yaw_rad);
+//	}
+//}
+//
+///* ==========================================================================
+// * Velocity update
+// * ========================================================================== */
+//
+//static void Navigation_UpdateVelocity(Navigation_t *navigation) {
+////	Vector3_t specific_force_ned;
+////
+////	double coriolis_north;
+////	double coriolis_east;
+////	double coriolis_down;
+//
+//	double acceleration_north;
+//	double acceleration_east;
+//	double acceleration_down;
+//
+//	if (navigation != NULL) {
+//		/*
+//		 * Transform delta velocity from body to NED.
+//		 *
+//		 * DCM represents NED -> Body.
+//		 *
+//		 * Therefore:
+//		 *
+//		 * f_NED = C_B_NED^T * f_BODY
+//		 */
+////		Dcm_TransposeMultiplyVector(&navigation->dcm_ned_to_body,
+////				&navigation->body_delta_velocity, &specific_force_ned);
+//		/*
+//		 * Coriolis + transport rate.
+//		 *
+//		 * omega = 2 * EarthRate + TransportRate
+//		 */
+//		coriolis_north = ((2.0 * navigation->earth_rate.east_rad_s)
+//				+ navigation->transport_rate.east_rad_s)
+//				* navigation->velocity.down_m_s;
+//
+//		coriolis_north -= ((2.0 * navigation->earth_rate.down_rad_s)
+//				+ navigation->transport_rate.down_rad_s)
+//				* navigation->velocity.east_m_s;
+//
+//		coriolis_east = ((2.0 * navigation->earth_rate.down_rad_s)
+//				+ navigation->transport_rate.down_rad_s)
+//				* navigation->velocity.north_m_s;
+//
+//		coriolis_east -= ((2.0 * navigation->earth_rate.north_rad_s)
+//				+ navigation->transport_rate.north_rad_s)
+//				* navigation->velocity.down_m_s;
+//
+//		coriolis_down = ((2.0 * navigation->earth_rate.north_rad_s)
+//				+ navigation->transport_rate.north_rad_s)
+//				* navigation->velocity.east_m_s;
+//
+//		coriolis_down -= ((2.0 * navigation->earth_rate.east_rad_s)
+//				+ navigation->transport_rate.east_rad_s)
+//				* navigation->velocity.north_m_s;
+//
+//		/*
+//		 * NED velocity equation:
+//		 *
+//		 * Vdot = f_NED + g_NED - Omega x V
+//		 *
+//		 * where the above Coriolis terms represent
+//		 * Omega x V.
+//		 */
+////		acceleration_north = specific_force_ned.x_m_s2
+////				+ navigation->gravity.north_m_s2 - coriolis_north;
+////
+////		acceleration_east = specific_force_ned.y_m_s2
+////				+ navigation->gravity.east_m_s2 - coriolis_east;
+////
+////		acceleration_down = specific_force_ned.z_m_s2
+////				+ navigation->gravity.down_m_s2 - coriolis_down;
+//		navigation->velocity.north_m_s += acceleration_north *
+//		NAVIGATION_UPDATE_PERIOD_S;
+//
+//		navigation->velocity.east_m_s += acceleration_east *
+//		NAVIGATION_UPDATE_PERIOD_S;
+//
+//		navigation->velocity.down_m_s += acceleration_down *
+//		NAVIGATION_UPDATE_PERIOD_S;
+//	}
+//}
+//
+///* ==========================================================================
+// * Position update
+// * ========================================================================== */
+//
+//static void Navigation_UpdatePosition(Navigation_t *navigation) {
+//	double latitude_dot;
+//	double longitude_dot;
+//	double altitude_dot;
+//
+//	double latitude;
+//	double altitude;
+//
+//	double radius_meridian;
+//	double radius_transverse;
+//
+//	if (navigation != NULL) {
+//		latitude = navigation->position.latitude_rad;
+//
+//		altitude = navigation->position.altitude_m;
+//
+//		radius_meridian = navigation->radii.meridian_m;
+//
+//		radius_transverse = navigation->radii.transverse_m;
+//
+//		latitude_dot = navigation->velocity.north_m_s
+//				/ (radius_meridian + altitude);
+//
+//		/*
+//		 * Protect against division close to poles.
+//		 */
+//		if (fabs(cos(latitude)) > 1.0e-8) {
+//			longitude_dot = navigation->velocity.east_m_s
+//					/ ((radius_transverse + altitude) * cos(latitude));
+//		} else {
+//			longitude_dot = 0.0;
+//		}
+//
+//		/*
+//		 * NED convention:
+//		 *
+//		 * Down velocity positive.
+//		 * Therefore:
+//		 *
+//		 * h_dot = -V_D
+//		 */
+//		altitude_dot = -navigation->velocity.down_m_s;
+//
+//		navigation->position.latitude_rad += latitude_dot *
+//		NAVIGATION_UPDATE_PERIOD_S;
+//
+//		navigation->position.longitude_rad += longitude_dot *
+//		NAVIGATION_UPDATE_PERIOD_S;
+//
+//		navigation->position.altitude_m += altitude_dot *
+//		NAVIGATION_UPDATE_PERIOD_S;
+//	}
+//}
+//
+/* ==========================================================================
+ * IMU buffer reset
+ * ========================================================================== */
 
-	update_ready = false;
+static void Navigation_ResetImuBuffer(Navigation_t *navigation) {
+	uint32_t index;
 
-	if ((navigation != NULL) && (sample != NULL)
-			&& (navigation->initialized == true)) {
-		if (sample->valid == true) {
-			if (navigation->imu_sample_count <
-			NAVIGATION_IMU_SAMPLE_COUNT) {
-				navigation->imu_samples[navigation->imu_sample_count] = *sample;
+	if (navigation != NULL) {
+		navigation->imu_sample_count = 0U;
 
-				navigation->imu_sample_count++;
-			}
-
-			if (navigation->imu_sample_count ==
-			NAVIGATION_IMU_SAMPLE_COUNT) {
-				update_ready = Navigation_ProcessImuSamples(navigation, &imu);
-
-				if (update_ready == true) {
-					Navigation_Update(navigation, &imu);
-				}
-
-				navigation->imu_sample_count = 0U;
-			}
+		for (index = 0U; index < NAVIGATION_IMU_SAMPLE_COUNT; index++) {
+			Vector3_Zero(&navigation->imu_samples[index].gyro_rad_delt);
+			Vector3_Zero(&navigation->imu_samples[index].accel_m_s_delt);
 		}
 	}
-
-	return update_ready;
 }
 
-void Navigation_Update(Navigation_t *navigation,
-		const NavigationImuIncrement_t *imu) {
-	if ((navigation != NULL) && (imu != NULL) && (imu->valid == true)
-			&& (navigation->initialized == true)) {
-		/*
-		 * Attitude propagation.
-		 */
-		Attitude_Propagate(&navigation->attitude, imu);
-
-		/*
-		 * Gravity update.
-		 */
-		Gravity_Update(&navigation->gravity, &navigation->position);
-
-		/*
-		 * Velocity propagation.
-		 */
-		Velocity_Propagate(&navigation->velocity, &navigation->attitude,
-				&navigation->gravity, imu);
-
-		/*
-		 * Position propagation.
-		 */
-		Position_Propagate(&navigation->position, &navigation->velocity,
-				imu->dt_s);
-	}
-}
-
-void Navigation_GetSolution(const Navigation_t *navigation,
-		NavigationSolution_t *solution) {
-	if ((navigation != NULL) && (solution != NULL)
-			&& (navigation->initialized == true)) {
-		solution->position = navigation->position;
-
-		solution->velocity = navigation->velocity;
-
-		solution->attitude = navigation->attitude;
-
-		solution->gravity = navigation->gravity;
-
-		solution->earth_rate = navigation->earth_rate;
-
-		solution->transport_rate = navigation->transport_rate;
-
-		solution->valid = true;
-	}
-}
-
-bool Navigation_IsInitialized(const Navigation_t *navigation) {
-	bool initialized;
-
-	initialized = false;
-
-	if (navigation != NULL) {
-		initialized = navigation->initialized;
-	}
-
-	return initialized;
-}
-
-static bool Navigation_ProcessImuSamples(Navigation_t *navigation,
-		NavigationImuIncrement_t *imu) {
-	Vector3_t gyro_average;
-	Vector3_t accel_average;
-
-	bool valid;
-
-	valid = false;
-
-	if ((navigation != NULL) && (imu != NULL)) {
-		Navigation_CalculateImuAverage(navigation, &gyro_average,
-				&accel_average);
-
-		imu->delta_angle_rad.x = gyro_average.x *
-		NAVIGATION_UPDATE_PERIOD_S;
-
-		imu->delta_angle_rad.y = gyro_average.y *
-		NAVIGATION_UPDATE_PERIOD_S;
-
-		imu->delta_angle_rad.z = gyro_average.z *
-		NAVIGATION_UPDATE_PERIOD_S;
-
-		imu->delta_velocity_m_s.x = accel_average.x *
-		NAVIGATION_UPDATE_PERIOD_S;
-
-		imu->delta_velocity_m_s.y = accel_average.y *
-		NAVIGATION_UPDATE_PERIOD_S;
-
-		imu->delta_velocity_m_s.z = accel_average.z *
-		NAVIGATION_UPDATE_PERIOD_S;
-
-		imu->dt_s =
-		NAVIGATION_UPDATE_PERIOD_S;
-
-		imu->valid = true;
-
-		valid = true;
-	}
-
-	return valid;
-}
-
-static void Navigation_CalculateImuAverage(const Navigation_t *navigation,
-		Vector3_t *gyro_average, Vector3_t *accel_average) {
-	uint32_t index;
-
-	gyro_average->x = 0.0;
-	gyro_average->y = 0.0;
-	gyro_average->z = 0.0;
-
-	accel_average->x = 0.0;
-	accel_average->y = 0.0;
-	accel_average->z = 0.0;
-
-	for (index = 0U; index < NAVIGATION_IMU_SAMPLE_COUNT; index++) {
-		gyro_average->x += navigation->imu_samples[index].gyro_rad_delt.x;
-
-		gyro_average->y += navigation->imu_samples[index].gyro_rad_delt.y;
-
-		gyro_average->z += navigation->imu_samples[index].gyro_rad_delt.z;
-
-		accel_average->x += navigation->imu_samples[index].accel_m_s_delt.x;
-
-		accel_average->y += navigation->imu_samples[index].accel_m_s_delt.y;
-
-		accel_average->z += navigation->imu_samples[index].accel_m_s_delt.z;
-	}
-
-	gyro_average->x /= (double) NAVIGATION_IMU_SAMPLE_COUNT;
-
-	gyro_average->y /= (double) NAVIGATION_IMU_SAMPLE_COUNT;
-
-	gyro_average->z /= (double) NAVIGATION_IMU_SAMPLE_COUNT;
-
-	accel_average->x /= (double) NAVIGATION_IMU_SAMPLE_COUNT;
-
-	accel_average->y /= (double) NAVIGATION_IMU_SAMPLE_COUNT;
-
-	accel_average->z /= (double) NAVIGATION_IMU_SAMPLE_COUNT;
-}
-
-static void Navigation_ClearImuBuffer(Navigation_t *navigation) {
-	uint32_t index;
-
-	navigation->imu_sample_count = 0U;
-
-	for (index = 0U; index < NAVIGATION_IMU_SAMPLE_COUNT; index++) {
-		navigation->imu_samples[index].valid = false;
-	}
-}
+//	/* ==========================================================================
+//	 * Navigation solution
+//	 * ========================================================================== */
+//
+//	bool Navigation_GetSolution(const Navigation_t *navigation,
+//			NavigationSolution_t *solution) {
+//		bool valid;
+//
+//		valid = false;
+//
+//		if ((navigation != NULL) && (solution != NULL)
+//				&& (navigation->initialized == true)) {
+//			solution->position = navigation->position;
+//
+//			solution->velocity = navigation->velocity;
+//
+//			solution->attitude = navigation->attitude;
+//
+//			solution->valid = true;
+//
+//			valid = true;
+//		}
+//
+//		return valid;
+//	}
+//
+//	/* ==========================================================================
+//	 * Update flag
+//	 * ========================================================================== */
+//
+//	bool Navigation_IsUpdateAvailable(const Navigation_t *navigation) {
+//		bool available;
+//
+//		available = false;
+//
+//		if (navigation != NULL) {
+//			available = navigation->update_available;
+//		}
+//
+//		return available;
+//	}
+//
+//	void Navigation_ClearUpdateFlag(Navigation_t *navigation) {
+//		if (navigation != NULL) {
+//			navigation->update_available = false;
+//		}
+//	}
+//
 

@@ -27,21 +27,6 @@ void Imu_Init(Imu_t *imu) {
 	}
 }
 
-SensorStatus_t Imu_GetMeasurement(const Imu_t *imu,
-		ImuMeasurement_t *measurement) {
-	if ((imu == NULL) || (measurement == NULL)) {
-		return SENSOR_STATUS_NULL_POINTER;
-	}
-
-	if (imu->measurement.valid == false) {
-		return SENSOR_STATUS_NOT_READY;
-	}
-
-	*measurement = imu->measurement;
-
-	return SENSOR_STATUS_OK;
-}
-
 SensorStatus_t Imu_SetCalibration(Imu_t *imu,
 		const ImuCalibration_t *calibration) {
 	if ((imu == NULL) || (calibration == NULL)) {

@@ -3,13 +3,15 @@
 
 #include "ins_types.h"
 #include "navigation.h"
-#include "isr.h"
+#include "math_constants.h"
+
+static NavigationMdl_t mdl_data;
 
 static Navigation_t navigation;
 
-static InsMode_t ins_mode;
+static NavigationSolution_t nav_solution_pure;
 
-static bool application_running;
+static InsMode_t ins_mode;
 
 static bool Main_ReadCommand(InsCommand_t *command);
 
@@ -17,25 +19,40 @@ static void Main_ExecuteCommand(InsCommand_t command);
 
 static void Main_ProcessInsMode(void);
 
+static void Main_IMU_Isr(void) {
+	navigation.rcnt++;
+
+	printf("Time : %lf\n",
+			(float64_t) (navigation.rcnt) * NAVIGATION_IMU_SAMPLE_PERIOD_S);
+	printf("Attitude : %lf\n",
+			nav_solution_pure.attitude.euler.yaw_rad * MATH_RAD_TO_DEG);
+}
+
+static void Main_Mdl(NavigationMdl_t *mdl) {
+	mdl->position.latitude_rad = 17.257612 * MATH_DEG_TO_RAD;
+	mdl->navigation_time = 10.0;
+}
+
+static void Main_Navigation(void) {
+	ins_mode = INS_MODE_NAVIGATION;
+
+	Navigation_Init_From_Mdl(&mdl_data, &navigation, &nav_solution_pure);
+
+	while (navigation.rcnt <= ((uint32_t) (mdl_data.navigation_time * 400.0))) {
+		Main_IMU_Isr();
+	}
+
+}
+
 int main(void) {
-	application_running = true;
 
 	ins_mode = INS_MODE_IDLE;
 
-	Navigation_Init(&navigation);
+	Main_Mdl(&mdl_data);
 
-	Isr_Init(&navigation);
+//	Isr_Init(&navigation);
 
-	/*
-	 * Hardware/timer configuration will
-	 * eventually enable:
-	 *
-	 * IMU : 2.5 ms
-	 * GPS : 1 s
-	 * 1553B : event driven
-	 */
-
-	while (application_running == true) {
+	while (true) {
 		InsCommand_t command;
 
 		/*
@@ -75,7 +92,7 @@ static void Main_ProcessInsMode(void) {
 
 	case INS_MODE_NAVIGATION:
 
-//		HybridNavigation_Run(&navigation);
+		Main_Navigation();
 
 		break;
 
@@ -101,11 +118,14 @@ static bool Main_ReadCommand(InsCommand_t *command) {
 		printf("4 - Exit\n");
 		printf("Select: ");
 
-		input = getchar();
+		fflush(stdout);
 
-		while (getchar() != '\n') {
-			/* Discard remaining input. */
-		}
+//		input = getchar();
+//
+//		while (getchar() != '\n') {
+//			/* Discard remaining input. */
+//		}
+		input = '3';
 
 		switch (input) {
 		case '1':
@@ -165,8 +185,8 @@ static void Main_ExecuteCommand(InsCommand_t command) {
 
 	case INS_COMMAND_EXIT:
 
-		application_running =
-		false;
+//		application_running =
+//		false;
 
 		break;
 
