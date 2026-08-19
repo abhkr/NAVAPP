@@ -14,7 +14,7 @@
 #define CONE_K2             (92.0  / 105.0)
 #define CONE_K3             (54.0  / 105.0)
 
-#define SCULL_K1            (54.0  / 105.0)
+#define SCULL_K1_THETA      (54.0  / 105.0)
 #define SCULL_K2_THETA      (92.0  / 105.0)
 #define SCULL_K3_THETA      (214.0 / 105.0)
 
