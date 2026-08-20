@@ -57,11 +57,10 @@ SensorStatus_t Imu_Acquire(ImuMeasurement_t *measurement) {
 
 SensorStatus_t Imu_AcquireStatic(ImuMeasurement_t *measurement,
 		const float64_t lattitude, const float64_t del_t,
-		const EulerAngles_t *euler) {
+		const Matrix3_t *dcm_ned2body) {
 
 	Vector3_t gyro_rad_delt;
 	Vector3_t acc_m_s_delt;
-	Matrix3_t dcm_ned2body;
 
 	if (measurement == NULL) {
 		return SENSOR_STATUS_NULL_POINTER;
@@ -79,12 +78,10 @@ SensorStatus_t Imu_AcquireStatic(ImuMeasurement_t *measurement,
 
 	Vector3_Scale(&acc_m_s_delt, del_t, &acc_m_s_delt);
 
-	Transform_EulerToDcm(euler, &dcm_ned2body);
-
-	Matrix3_MultiplyVector(&dcm_ned2body, &gyro_rad_delt,
+	Matrix3_MultiplyVector(dcm_ned2body, &gyro_rad_delt,
 			&measurement->gyro_rad_delt);
 
-	Matrix3_MultiplyVector(&dcm_ned2body, &acc_m_s_delt,
+	Matrix3_MultiplyVector(dcm_ned2body, &acc_m_s_delt,
 			&measurement->accel_m_s_delt);
 
 	return SENSOR_STATUS_OK;

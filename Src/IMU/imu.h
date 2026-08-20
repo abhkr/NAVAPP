@@ -35,6 +35,6 @@ SensorStatus_t Imu_Acquire(ImuMeasurement_t *measurement);
 
 SensorStatus_t Imu_AcquireStatic(ImuMeasurement_t *measurement,
 		const float64_t lattitude, const float64_t del_t,
-		const EulerAngles_t *euler);
+		const Matrix3_t *dcm_ned2body);
 
 #endif /* IMU_H_ */

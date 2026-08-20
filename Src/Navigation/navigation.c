@@ -156,124 +156,155 @@ void Navigation_Init_From_Mdl(const NavigationMdl_t *mdl_data,
 //	}
 //}
 //
-//void Navigation_Coning_Compensate(const ImuMeasurement_t samples[4],
-//		ImuMeasurement_t *corrected) {
-//	Vector3_t dth01;
-//	Vector3_t dth12;
-//	Vector3_t dth23;
-//	Vector3_t dth02;
-//	Vector3_t dth13;
-//	Vector3_t dth03;
-//	Vector3_t temp;
+static void Navigation_Coning_Compensate(const ImuMeasurement_t samples[4],
+		ImuMeasurement_t *corrected) {
+
+	uint8_t index;
+	Vector3_t dth01;
+	Vector3_t dth12;
+	Vector3_t dth23;
+	Vector3_t dth02;
+	Vector3_t dth13;
+	Vector3_t dth03;
+
+	Vector3_Cross(&samples[0].gyro_rad_delt, &samples[1].gyro_rad_delt, &dth01);
+	Vector3_Cross(&samples[1].gyro_rad_delt, &samples[2].gyro_rad_delt, &dth12);
+	Vector3_Cross(&samples[2].gyro_rad_delt, &samples[3].gyro_rad_delt, &dth23);
+	Vector3_Cross(&samples[0].gyro_rad_delt, &samples[2].gyro_rad_delt, &dth02);
+	Vector3_Cross(&samples[1].gyro_rad_delt, &samples[3].gyro_rad_delt, &dth13);
+	Vector3_Cross(&samples[0].gyro_rad_delt, &samples[3].gyro_rad_delt, &dth03);
+
+	/* Sum of All delta theta */
+
+	for (index = 0; index < 4; index++) {
+		corrected->gyro_rad_delt.x += samples[index].gyro_rad_delt.x;
+		corrected->gyro_rad_delt.y += samples[index].gyro_rad_delt.y;
+		corrected->gyro_rad_delt.z += samples[index].gyro_rad_delt.z;
+	}
+
+	/**
+	 * k1 * (theta0 x theta1 + theta1 x theta2 + theta2 x theta3)
+	 */
+	corrected->gyro_rad_delt.x += (CONE_K1 * (dth01.x + dth12.x + dth23.x));
+	corrected->gyro_rad_delt.y += (CONE_K1 * (dth01.y + dth12.y + dth23.y));
+	corrected->gyro_rad_delt.z += (CONE_K1 * (dth01.z + dth12.z + dth23.z));
+
+	/**
+	 * k2 * (theta0 x theta2 + theta1 x theta3)
+	 */
+	corrected->gyro_rad_delt.x += (CONE_K2 * (dth02.x + dth13.x));
+	corrected->gyro_rad_delt.y += (CONE_K2 * (dth02.y + dth13.y));
+	corrected->gyro_rad_delt.z += (CONE_K2 * (dth02.z + dth13.z));
+
+	/**
+	 * k3 * (theta0 x theta3)
+	 */
+	corrected->gyro_rad_delt.x += (CONE_K3 * dth03.x);
+	corrected->gyro_rad_delt.y += (CONE_K3 * dth03.y);
+	corrected->gyro_rad_delt.z += (CONE_K3 * dth03.z);
+}
+
+void Navigation_Sculling_Compensate(const ImuMeasurement_t samples[4],
+		ImuMeasurement_t *corrected) {
+	uint8_t index;
+	Vector3_t theta_term;
+	Vector3_t velocity_term;
+	Vector3_t scull;
+
+	Vector3_t temp;
+
+	/* ---------------------------------------------------------
+	 * 1. Simple sum of four velocity increments
+	 * --------------------------------------------------------- */
+
+	for (index = 0; index < 4; index++) {
+		corrected->accel_m_s_delt.x += samples[index].accel_m_s_delt.x;
+		corrected->accel_m_s_delt.y += samples[index].accel_m_s_delt.y;
+		corrected->accel_m_s_delt.z += samples[index].accel_m_s_delt.z;
+	}
+
+	Vector3_Scale(&samples[0].gyro_rad_delt, SCULL_K1_THETA, &theta_term);
+	Vector3_Scale(&samples[1].gyro_rad_delt, SCULL_K2_THETA, &temp);
+	Vector3_Add(&theta_term, &temp, &theta_term);
+	Vector3_Scale(&samples[2].gyro_rad_delt, SCULL_K3_THETA, &temp);
+	Vector3_Add(&theta_term, &temp, &theta_term);
+
+	Vector3_Scale(&samples[0].accel_m_s_delt, SCULL_K1_V, &velocity_term);
+	Vector3_Scale(&samples[1].accel_m_s_delt, SCULL_K2_V, &temp);
+	Vector3_Add(&velocity_term, &temp, &velocity_term);
+	Vector3_Scale(&samples[2].accel_m_s_delt, SCULL_K3_V, &temp);
+	Vector3_Add(&velocity_term, &temp, &velocity_term);
+
+	Vector3_Cross(&theta_term, &samples[3].accel_m_s_delt, &scull);
+	Vector3_Cross(&velocity_term, &samples[3].gyro_rad_delt, &temp);
+
+	Vector3_Add(&scull, &temp, &corrected->accel_m_s_delt);
+}
+
+void Navigation_Apply_Coning_Sculling(const Navigation_t *navigation,
+		ImuMeasurement_t *corrected) {
+
+	Vector3_Zero(&corrected->gyro_rad_delt);
+	Vector3_Zero(&corrected->accel_m_s_delt);
+
+	/* Coning Compensation */
+
+	Navigation_Coning_Compensate(navigation->imu_samples, corrected);
+
+}
+
+/* ==========================================================================
+ * IMU sample averaging
+ * ========================================================================== */
+
+//static void Navigation_AverageImuSamples(Navigation_t *navigation,
+//		ImuMeasurement_t *average) {
+//	uint32_t index;
+//	double gyro_x;
+//	double gyro_y;
+//	double gyro_z;
 //
-//	Vector3_Cross(&samples[0].gyro_rad_delt, &samples[1].gyro_rad_delt, &dth01);
-//	Vector3_Cross(&samples[1].gyro_rad_delt, &samples[2].gyro_rad_delt, &dth12);
-//	Vector3_Cross(&samples[2].gyro_rad_delt, &samples[3].gyro_rad_delt, &dth23);
-//	Vector3_Cross(&samples[0].gyro_rad_delt, &samples[2].gyro_rad_delt, &dth02);
-//	Vector3_Cross(&samples[1].gyro_rad_delt, &samples[3].gyro_rad_delt, &dth13);
-//	Vector3_Cross(&samples[0].gyro_rad_delt, &samples[3].gyro_rad_delt, &dth03);
+//	double accel_x;
+//	double accel_y;
+//	double accel_z;
 //
-//	Vector3_Scale(&dth03, CONE_K1, &corrected->gyro_rad_delt);
+//	gyro_x = 0.0;
+//	gyro_y = 0.0;
+//	gyro_z = 0.0;
 //
-//	Vector3_Add(&dth02, &dth13, &temp);
-//	Vector3_Scale(&temp, CONE_K2, &temp);
+//	accel_x = 0.0;
+//	accel_y = 0.0;
+//	accel_z = 0.0;
 //
-//	Vector3_Add(&corrected->gyro_rad_delt, &temp, &corrected->gyro_rad_delt);
+//	if ((navigation != NULL) && (average != NULL)) {
+//		for (index = 0U; index < NAVIGATION_IMU_SAMPLE_COUNT; index++) {
+//			gyro_x += navigation->imu_samples[index].gyro_rad_delt.x;
 //
-//	Vector3_Add(&dth01, &dth12, &temp);
-//	Vector3_Add(&temp, &dth23, &temp);
-//	Vector3_Scale(&temp, CONE_K3, &temp);
+//			gyro_y += navigation->imu_samples[index].gyro_rad_delt.y;
 //
-//	Vector3_Add(&corrected->gyro_rad_delt, &temp, &corrected->gyro_rad_delt);
+//			gyro_z += navigation->imu_samples[index].gyro_rad_delt.z;
 //
-//	Vector3_Add(&corrected->gyro_rad_delt, &samples[0].gyro_rad_delt,
-//			&corrected->gyro_rad_delt);
-//	Vector3_Add(&corrected->gyro_rad_delt, &samples[1].gyro_rad_delt,
-//			&corrected->gyro_rad_delt);
-//	Vector3_Add(&corrected->gyro_rad_delt, &samples[2].gyro_rad_delt,
-//			&corrected->gyro_rad_delt);
-//	Vector3_Add(&corrected->gyro_rad_delt, &samples[3].gyro_rad_delt,
-//			&corrected->gyro_rad_delt);
+//			accel_x += navigation->imu_samples[index].accel_m_s_delt.x;
+//
+//			accel_y += navigation->imu_samples[index].accel_m_s_delt.y;
+//
+//			accel_z += navigation->imu_samples[index].accel_m_s_delt.z;
+//		}
+//		average->gyro.x_rad_s = gyro_x / (double) NAVIGATION_IMU_SAMPLE_COUNT;
+//
+//		average->gyro.y_rad_s = gyro_y / (double) NAVIGATION_IMU_SAMPLE_COUNT;
+//
+//		average->gyro.z_rad_s = gyro_z / (double) NAVIGATION_IMU_SAMPLE_COUNT;
+//
+//		average->accelerometer.x_m_s2 = accel_x
+//				/ (double) NAVIGATION_IMU_SAMPLE_COUNT;
+//
+//		average->accelerometer.y_m_s2 = accel_y
+//				/ (double) NAVIGATION_IMU_SAMPLE_COUNT;
+//
+//		average->accelerometer.z_m_s2 = accel_z
+//				/ (double) NAVIGATION_IMU_SAMPLE_COUNT;
 //}
-//
-//void Navigation_Sculling_Compensate(const ImuMeasurement_t samples[4],
-//		ImuMeasurement_t *corrected) {
-//	Vector3_t theta_term;
-//	Vector3_t velocity_term;
-//	Vector3_t scull;
-//
-//	Vector3_t temp;
-//
-//	Vector3_Scale(&samples[0].gyro_rad_delt, SCULL_K1_THETA, &theta_term);
-//	Vector3_Scale(&samples[1].gyro_rad_delt, SCULL_K2_THETA, &temp);
-//	Vector3_Add(&theta_term, &temp, &theta_term);
-//	Vector3_Scale(&samples[2].gyro_rad_delt, SCULL_K3_THETA, &temp);
-//	Vector3_Add(&theta_term, &temp, &theta_term);
-//
-//	Vector3_Scale(&samples[0].accel_m_s_delt, SCULL_K1_V, &velocity_term);
-//	Vector3_Scale(&samples[1].accel_m_s_delt, SCULL_K2_V, &temp);
-//	Vector3_Add(&velocity_term, &temp, &velocity_term);
-//	Vector3_Scale(&samples[2].accel_m_s_delt, SCULL_K3_V, &temp);
-//	Vector3_Add(&velocity_term, &temp, &velocity_term);
-//
-//	Vector3_Cross(&theta_term, &samples[3].accel_m_s_delt, &scull);
-//	Vector3_Cross(&velocity_term, &samples[3].gyro_rad_delt, &temp);
-//
-//	Vector3_Add(&scull, &temp, &corrected->accel_m_s_delt);
-//}
-//
-///* ==========================================================================
-// * IMU sample averaging
-// * ========================================================================== */
-//
-////static void Navigation_AverageImuSamples(Navigation_t *navigation,
-////		ImuMeasurement_t *average) {
-////	uint32_t index;
-////	double gyro_x;
-////	double gyro_y;
-////	double gyro_z;
-////
-////	double accel_x;
-////	double accel_y;
-////	double accel_z;
-////
-////	gyro_x = 0.0;
-////	gyro_y = 0.0;
-////	gyro_z = 0.0;
-////
-////	accel_x = 0.0;
-////	accel_y = 0.0;
-////	accel_z = 0.0;
-////
-////	if ((navigation != NULL) && (average != NULL)) {
-////		for (index = 0U; index < NAVIGATION_IMU_SAMPLE_COUNT; index++) {
-////			gyro_x += navigation->imu_samples[index].gyro_rad_delt.x;
-////
-////			gyro_y += navigation->imu_samples[index].gyro_rad_delt.y;
-////
-////			gyro_z += navigation->imu_samples[index].gyro_rad_delt.z;
-////
-////			accel_x += navigation->imu_samples[index].accel_m_s_delt.x;
-////
-////			accel_y += navigation->imu_samples[index].accel_m_s_delt.y;
-////
-////			accel_z += navigation->imu_samples[index].accel_m_s_delt.z;
-////		}
-////		average->gyro.x_rad_s = gyro_x / (double) NAVIGATION_IMU_SAMPLE_COUNT;
-////
-////		average->gyro.y_rad_s = gyro_y / (double) NAVIGATION_IMU_SAMPLE_COUNT;
-////
-////		average->gyro.z_rad_s = gyro_z / (double) NAVIGATION_IMU_SAMPLE_COUNT;
-////
-////		average->accelerometer.x_m_s2 = accel_x
-////				/ (double) NAVIGATION_IMU_SAMPLE_COUNT;
-////
-////		average->accelerometer.y_m_s2 = accel_y
-////				/ (double) NAVIGATION_IMU_SAMPLE_COUNT;
-////
-////		average->accelerometer.z_m_s2 = accel_z
-////				/ (double) NAVIGATION_IMU_SAMPLE_COUNT;
-////}
 ///* ==========================================================================
 // * IMU preprocessing
 // * ========================================================================== */
