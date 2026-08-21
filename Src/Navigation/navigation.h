@@ -23,9 +23,9 @@
 #define NAVIGATION_UPDATE_PERIOD_S     (0.010)
 #define NAVIGATION_IMU_SAMPLE_PERIOD_S (0.0025)
 
-#define CONE_K1             (214.0 / 315.0)
-#define CONE_K2             (92.0  / 315.0)
-#define CONE_K3             (54.0  / 315.0)
+#define CONE_K1_COEFF             (214.0 / 315.0)
+#define CONE_K2_COEFF             (92.0  / 315.0)
+#define CONE_K3_COEFF             (54.0  / 315.0)
 
 #define SCULL_K1_THETA      (54.0  / 105.0)
 #define SCULL_K2_THETA      (92.0  / 105.0)
@@ -34,6 +34,10 @@
 #define SCULL_K1_V          (54.0  / 105.0)
 #define SCULL_K2_V          (29.0  / 105.0)
 #define SCULL_K3_V          (214.0 / 105.0)
+
+#define SCULL_K1_COEFF 		(214.0 / 315.0)
+#define	SCULL_K2_COEFF  	(46.0 / 105.0)
+#define SCULL_K3_COEFF 		(54.0 / 105.0)
 
 //void Navigation_Coning_Compensate(const ImuMeasurement_t samples[4],
 //		ImuMeasurement_t *corrected);

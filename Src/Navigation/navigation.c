@@ -159,6 +159,23 @@ void Navigation_Init_From_Mdl(const NavigationMdl_t *mdl_data,
 static void Navigation_Coning_Compensate(const ImuMeasurement_t samples[4],
 		ImuMeasurement_t *corrected) {
 
+	Vector3_t theta_sum;
+
+	Vector3_t cross_12;
+	Vector3_t cross_23;
+	Vector3_t cross_34;
+
+	Vector3_t cross_13;
+	Vector3_t cross_24;
+
+	Vector3_t cross_14;
+
+	Vector3_t k1_term;
+	Vector3_t k2_term;
+	Vector3_t k3_term;
+
+	Vector3_t cone_total;
+
 	uint8_t index;
 	Vector3_t dth01;
 	Vector3_t dth12;
@@ -167,20 +184,78 @@ static void Navigation_Coning_Compensate(const ImuMeasurement_t samples[4],
 	Vector3_t dth13;
 	Vector3_t dth03;
 
+	/* ---------------------------------------------------------
+	 * 1. Simple sum of four Angular increments
+	 * --------------------------------------------------------- */
+
+	Vector3_Add(&samples[0].gyro_rad_delt, &samples[1].gyro_rad_delt,
+			&theta_sum);
+	Vector3_Add(&theta_sum, &samples[2].gyro_rad_delt, &theta_sum);
+	Vector3_Add(&theta_sum, &samples[3].gyro_rad_delt, &theta_sum);
+
+	/* ---------------------------------------------------------
+	 * 2. Adjacent-sample cross products - K1 terms
+	 *
+	 * theta1 x theta2
+	 * theta2 x theta3
+	 * theta3 x theta4
+	 * --------------------------------------------------------- */
+
+	Vector3_Cross(&samples[0].gyro_rad_delt, &samples[1].gyro_rad_delt,
+			&cross_12);
+	Vector3_Cross(&samples[1].gyro_rad_delt, &samples[2].gyro_rad_delt,
+			&cross_23);
+	Vector3_Cross(&samples[2].gyro_rad_delt, &samples[3].gyro_rad_delt,
+			&cross_34);
+
+	Vector3_Add(&cross_12, &cross_23, &k1_term);
+	Vector3_Add(&k1_term, &cross_34, &k1_term);
+	Vector3_Scale(&k1_term, CONE_K1_COEFF, &k1_term);
+
+	/* ---------------------------------------------------------
+	 * 3. One-sample-separated products - K2 terms
+	 *
+	 * theta1 x theta3
+	 * theta2 x theta4
+	 * --------------------------------------------------------- */
+
+	Vector3_Cross(&samples[0].gyro_rad_delt, &samples[2].gyro_rad_delt,
+			&cross_13);
+	Vector3_Cross(&samples[1].gyro_rad_delt, &samples[3].gyro_rad_delt,
+			&cross_24);
+
+	Vector3_Add(&cross_13, &cross_24, &k2_term);
+	Vector3_Scale(&k2_term, CONE_K2_COEFF, &k2_term);
+
+	/* ---------------------------------------------------------
+	 * 4. First-to-fourth sample - K3 terms
+	 *
+	 * theta1 x theta4
+	 * --------------------------------------------------------- */
+
+	Vector3_Cross(&samples[0].gyro_rad_delt, &samples[3].gyro_rad_delt,
+			&cross_14);
+
+	Vector3_Scale(&cross_14, CONE_K3_COEFF, &k3_term);
+
+	/* ---------------------------------------------------------
+	 * 5. Total coning correction
+	 * --------------------------------------------------------- */
+	Vector3_Add(&k1_term, &k2_term, &cone_total);
+	Vector3_Add(&cone_total, &k3_term, &cone_total);
+
+	/* ---------------------------------------------------------
+	 * 6. Total body-frame velocity increment
+	 * --------------------------------------------------------- */
+
+	Vector3_Add(&theta_sum, &cone_total, &corrected->gyro_rad_delt);
+
 	Vector3_Cross(&samples[0].gyro_rad_delt, &samples[1].gyro_rad_delt, &dth01);
 	Vector3_Cross(&samples[1].gyro_rad_delt, &samples[2].gyro_rad_delt, &dth12);
 	Vector3_Cross(&samples[2].gyro_rad_delt, &samples[3].gyro_rad_delt, &dth23);
 	Vector3_Cross(&samples[0].gyro_rad_delt, &samples[2].gyro_rad_delt, &dth02);
 	Vector3_Cross(&samples[1].gyro_rad_delt, &samples[3].gyro_rad_delt, &dth13);
 	Vector3_Cross(&samples[0].gyro_rad_delt, &samples[3].gyro_rad_delt, &dth03);
-
-	/* Sum of All delta theta */
-
-	for (index = 0; index < 4; index++) {
-		corrected->gyro_rad_delt.x += samples[index].gyro_rad_delt.x;
-		corrected->gyro_rad_delt.y += samples[index].gyro_rad_delt.y;
-		corrected->gyro_rad_delt.z += samples[index].gyro_rad_delt.z;
-	}
 
 	/**
 	 * k1 * (theta0 x theta1 + theta1 x theta2 + theta2 x theta3)
@@ -206,39 +281,110 @@ static void Navigation_Coning_Compensate(const ImuMeasurement_t samples[4],
 
 void Navigation_Sculling_Compensate(const ImuMeasurement_t samples[4],
 		ImuMeasurement_t *corrected) {
-	uint8_t index;
-	Vector3_t theta_term;
-	Vector3_t velocity_term;
-	Vector3_t scull;
 
-	Vector3_t temp;
+	Vector3_t sum_delta_v;
+	Vector3_t scull_k1;
+	Vector3_t scull_k2;
+	Vector3_t scull_k3;
+	Vector3_t scull_total;
+
+	Vector3_t term;
 
 	/* ---------------------------------------------------------
 	 * 1. Simple sum of four velocity increments
 	 * --------------------------------------------------------- */
 
-	for (index = 0; index < 4; index++) {
-		corrected->accel_m_s_delt.x += samples[index].accel_m_s_delt.x;
-		corrected->accel_m_s_delt.y += samples[index].accel_m_s_delt.y;
-		corrected->accel_m_s_delt.z += samples[index].accel_m_s_delt.z;
-	}
+	Vector3_Add(&samples[0].accel_m_s_delt, &samples[1].accel_m_s_delt,
+			&sum_delta_v);
+	Vector3_Add(&sum_delta_v, &samples[2].accel_m_s_delt, &sum_delta_v);
+	Vector3_Add(&sum_delta_v, &samples[3].accel_m_s_delt, &sum_delta_v);
 
-	Vector3_Scale(&samples[0].gyro_rad_delt, SCULL_K1_THETA, &theta_term);
-	Vector3_Scale(&samples[1].gyro_rad_delt, SCULL_K2_THETA, &temp);
-	Vector3_Add(&theta_term, &temp, &theta_term);
-	Vector3_Scale(&samples[2].gyro_rad_delt, SCULL_K3_THETA, &temp);
-	Vector3_Add(&theta_term, &temp, &theta_term);
+	/* ---------------------------------------------------------
+	 * 2. k1 terms
+	 *
+	 * theta1 x dv2
+	 * dv1    x theta2
+	 * theta2 x dv3
+	 * dv2    x theta3
+	 * --------------------------------------------------------- */
 
-	Vector3_Scale(&samples[0].accel_m_s_delt, SCULL_K1_V, &velocity_term);
-	Vector3_Scale(&samples[1].accel_m_s_delt, SCULL_K2_V, &temp);
-	Vector3_Add(&velocity_term, &temp, &velocity_term);
-	Vector3_Scale(&samples[2].accel_m_s_delt, SCULL_K3_V, &temp);
-	Vector3_Add(&velocity_term, &temp, &velocity_term);
+	scull_k1.x = 0.0;
+	scull_k1.y = 0.0;
+	scull_k1.z = 0.0;
 
-	Vector3_Cross(&theta_term, &samples[3].accel_m_s_delt, &scull);
-	Vector3_Cross(&velocity_term, &samples[3].gyro_rad_delt, &temp);
+	Vector3_Cross(&samples[0].gyro_rad_delt, &samples[1].accel_m_s_delt, &term);
+	Vector3_Add(&scull_k1, &term, &scull_k1);
 
-	Vector3_Add(&scull, &temp, &corrected->accel_m_s_delt);
+	Vector3_Cross(&samples[0].accel_m_s_delt, &samples[1].gyro_rad_delt, &term);
+	Vector3_Add(&scull_k1, &term, &scull_k1);
+
+	Vector3_Cross(&samples[1].gyro_rad_delt, &samples[2].accel_m_s_delt, &term);
+	Vector3_Add(&scull_k1, &term, &scull_k1);
+
+	Vector3_Cross(&samples[1].accel_m_s_delt, &samples[2].gyro_rad_delt, &term);
+	Vector3_Add(&scull_k1, &term, &scull_k1);
+
+	Vector3_Scale(&scull_k1, SCULL_K1_COEFF, &scull_k1);
+
+	/* ---------------------------------------------------------
+	 * 3. k2 terms
+	 *
+	 * theta1 x dv3
+	 * dv1    x theta3
+	 * theta2 x dv4
+	 * dv2    x theta4
+	 * --------------------------------------------------------- */
+
+	scull_k2.x = 0.0;
+	scull_k2.y = 0.0;
+	scull_k2.z = 0.0;
+
+	Vector3_Cross(&samples[0].gyro_rad_delt, &samples[2].accel_m_s_delt, &term);
+	Vector3_Add(&scull_k2, &term, &scull_k2);
+
+	Vector3_Cross(&samples[0].accel_m_s_delt, &samples[2].gyro_rad_delt, &term);
+	Vector3_Add(&scull_k2, &term, &scull_k2);
+
+	Vector3_Cross(&samples[1].gyro_rad_delt, &samples[3].accel_m_s_delt, &term);
+	Vector3_Add(&scull_k2, &term, &scull_k2);
+
+	Vector3_Cross(&samples[1].accel_m_s_delt, &samples[3].gyro_rad_delt, &term);
+	Vector3_Add(&scull_k2, &term, &scull_k2);
+
+	Vector3_Scale(&scull_k2, SCULL_K2_COEFF, &scull_k2);
+
+	/* ---------------------------------------------------------
+	 * 4. k3 terms
+	 *
+	 * theta1 x dv4
+	 * dv1    x theta4
+	 * --------------------------------------------------------- */
+
+	scull_k3.x = 0.0;
+	scull_k3.y = 0.0;
+	scull_k3.z = 0.0;
+
+	Vector3_Cross(&samples[0].gyro_rad_delt, &samples[3].accel_m_s_delt, &term);
+	Vector3_Add(&scull_k3, &term, &scull_k3);
+
+	Vector3_Cross(&samples[0].accel_m_s_delt, &samples[3].gyro_rad_delt, &term);
+	Vector3_Add(&scull_k3, &term, &scull_k3);
+
+	Vector3_Scale(&scull_k3, SCULL_K3_COEFF, &scull_k3);
+
+	/* ---------------------------------------------------------
+	 * 5. Total sculling correction
+	 * --------------------------------------------------------- */
+
+	Vector3_Add(&scull_k1, &scull_k2, &scull_total);
+	Vector3_Add(&scull_total, &scull_k3, &scull_total);
+
+	/* ---------------------------------------------------------
+	 * 6. Total body-frame velocity increment
+	 * --------------------------------------------------------- */
+
+	Vector3_Add(&sum_delta_v, &scull_total, &corrected->accel_m_s_delt);
+
 }
 
 void Navigation_Apply_Coning_Sculling(const Navigation_t *navigation,
@@ -250,6 +396,9 @@ void Navigation_Apply_Coning_Sculling(const Navigation_t *navigation,
 	/* Coning Compensation */
 
 	Navigation_Coning_Compensate(navigation->imu_samples, corrected);
+
+	/* Sculling Compensation */
+	Navigation_Sculling_Compensate(navigation->imu_samples, corrected);
 
 }
 
