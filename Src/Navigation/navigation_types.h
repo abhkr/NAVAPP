@@ -75,7 +75,9 @@ typedef struct {
  * ========================================================================== */
 
 typedef struct {
+	NavigationSolution_t pure_solution;
 	Matrix3_t dcm_ned_to_body;
+	ImuMeasurement_t imu_compensated;
 	ImuMeasurement_t imu_samples[NAVIGATION_IMU_SAMPLE_COUNT];
 	uint32_t imu_sample_count;
 	uint32_t rcnt;

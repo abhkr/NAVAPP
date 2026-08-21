@@ -90,6 +90,8 @@ void Navigation_ImuUpdate(Navigation_t *navigation, const ImuMeasurement_t *imu)
  */
 void Navigation_Update(Navigation_t *navigation);
 
+void Navigation_UpdateAttitude(Navigation_t *navigation);
+
 /**
  * @brief Get the current navigation solution.
  *

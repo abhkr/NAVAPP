@@ -59,7 +59,7 @@ static void Navigation_ResetImuBuffer(Navigation_t *navigation);
  * ========================================================================== */
 
 void Navigation_Init_From_Mdl(const NavigationMdl_t *mdl_data,
-		Navigation_t *navigation, NavigationSolution_t *solution) {
+		Navigation_t *navigation) {
 
 	if (navigation != NULL) {
 		Navigation_ResetImuBuffer(navigation);
@@ -67,23 +67,32 @@ void Navigation_Init_From_Mdl(const NavigationMdl_t *mdl_data,
 		navigation->rcnt = 0U;
 
 		/* Initialize INS Position */
-		solution->position.latitude_rad = mdl_data->position.latitude_rad;
-		solution->position.longitude_rad = mdl_data->position.longitude_rad;
-		solution->position.altitude_m = mdl_data->position.altitude_m;
+		navigation->pure_solution.position.latitude_rad =
+				mdl_data->position.latitude_rad;
+		navigation->pure_solution.position.longitude_rad =
+				mdl_data->position.longitude_rad;
+		navigation->pure_solution.position.altitude_m =
+				mdl_data->position.altitude_m;
 
 		/* Initialize INS Velocity */
-		solution->velocity.north_m_s = mdl_data->velocity.north_m_s;
-		solution->velocity.east_m_s = mdl_data->velocity.east_m_s;
-		solution->velocity.down_m_s = mdl_data->velocity.down_m_s;
+		navigation->pure_solution.velocity.north_m_s =
+				mdl_data->velocity.north_m_s;
+		navigation->pure_solution.velocity.east_m_s =
+				mdl_data->velocity.east_m_s;
+		navigation->pure_solution.velocity.down_m_s =
+				mdl_data->velocity.down_m_s;
 
 		/* Initialize Attitude */
-		solution->attitude.euler.yaw_rad = mdl_data->attitude.euler.yaw_rad;
-		solution->attitude.euler.pitch_rad = mdl_data->attitude.euler.pitch_rad;
-		solution->attitude.euler.roll_rad = mdl_data->attitude.euler.roll_rad;
+		navigation->pure_solution.attitude.euler.yaw_rad =
+				mdl_data->attitude.euler.yaw_rad;
+		navigation->pure_solution.attitude.euler.pitch_rad =
+				mdl_data->attitude.euler.pitch_rad;
+		navigation->pure_solution.attitude.euler.roll_rad =
+				mdl_data->attitude.euler.roll_rad;
 
 		/* Initialize Quaternion - Ned 2 Body */
 		Transform_EulerToQuaternion(&mdl_data->attitude.euler,
-				&solution->quaternion);
+				&navigation->pure_solution.quaternion);
 
 	}
 }
@@ -176,14 +185,6 @@ static void Navigation_Coning_Compensate(const ImuMeasurement_t samples[4],
 
 	Vector3_t cone_total;
 
-	uint8_t index;
-	Vector3_t dth01;
-	Vector3_t dth12;
-	Vector3_t dth23;
-	Vector3_t dth02;
-	Vector3_t dth13;
-	Vector3_t dth03;
-
 	/* ---------------------------------------------------------
 	 * 1. Simple sum of four Angular increments
 	 * --------------------------------------------------------- */
@@ -249,34 +250,6 @@ static void Navigation_Coning_Compensate(const ImuMeasurement_t samples[4],
 	 * --------------------------------------------------------- */
 
 	Vector3_Add(&theta_sum, &cone_total, &corrected->gyro_rad_delt);
-
-	Vector3_Cross(&samples[0].gyro_rad_delt, &samples[1].gyro_rad_delt, &dth01);
-	Vector3_Cross(&samples[1].gyro_rad_delt, &samples[2].gyro_rad_delt, &dth12);
-	Vector3_Cross(&samples[2].gyro_rad_delt, &samples[3].gyro_rad_delt, &dth23);
-	Vector3_Cross(&samples[0].gyro_rad_delt, &samples[2].gyro_rad_delt, &dth02);
-	Vector3_Cross(&samples[1].gyro_rad_delt, &samples[3].gyro_rad_delt, &dth13);
-	Vector3_Cross(&samples[0].gyro_rad_delt, &samples[3].gyro_rad_delt, &dth03);
-
-	/**
-	 * k1 * (theta0 x theta1 + theta1 x theta2 + theta2 x theta3)
-	 */
-	corrected->gyro_rad_delt.x += (CONE_K1 * (dth01.x + dth12.x + dth23.x));
-	corrected->gyro_rad_delt.y += (CONE_K1 * (dth01.y + dth12.y + dth23.y));
-	corrected->gyro_rad_delt.z += (CONE_K1 * (dth01.z + dth12.z + dth23.z));
-
-	/**
-	 * k2 * (theta0 x theta2 + theta1 x theta3)
-	 */
-	corrected->gyro_rad_delt.x += (CONE_K2 * (dth02.x + dth13.x));
-	corrected->gyro_rad_delt.y += (CONE_K2 * (dth02.y + dth13.y));
-	corrected->gyro_rad_delt.z += (CONE_K2 * (dth02.z + dth13.z));
-
-	/**
-	 * k3 * (theta0 x theta3)
-	 */
-	corrected->gyro_rad_delt.x += (CONE_K3 * dth03.x);
-	corrected->gyro_rad_delt.y += (CONE_K3 * dth03.y);
-	corrected->gyro_rad_delt.z += (CONE_K3 * dth03.z);
 }
 
 void Navigation_Sculling_Compensate(const ImuMeasurement_t samples[4],
@@ -387,18 +360,18 @@ void Navigation_Sculling_Compensate(const ImuMeasurement_t samples[4],
 
 }
 
-void Navigation_Apply_Coning_Sculling(const Navigation_t *navigation,
-		ImuMeasurement_t *corrected) {
+void Navigation_Apply_Coning_Sculling(const Navigation_t *navigation) {
 
-	Vector3_Zero(&corrected->gyro_rad_delt);
-	Vector3_Zero(&corrected->accel_m_s_delt);
+	Vector3_Zero(&navigation->imu_compensated.gyro_rad_delt);
+	Vector3_Zero(&navigation->imu_compensated.accel_m_s_delt);
 
 	/* Coning Compensation */
-
-	Navigation_Coning_Compensate(navigation->imu_samples, corrected);
+	Navigation_Coning_Compensate(navigation->imu_samples,
+			&navigation->imu_compensated);
 
 	/* Sculling Compensation */
-	Navigation_Sculling_Compensate(navigation->imu_samples, corrected);
+	Navigation_Sculling_Compensate(navigation->imu_samples,
+			&navigation->imu_compensated);
 
 }
 
@@ -638,104 +611,104 @@ void Navigation_Apply_Coning_Sculling(const Navigation_t *navigation,
 //	}
 //}
 //
-///* ==========================================================================
-// * Attitude update
-// *
-// * Quaternion represents rotation from NED to body frame.
-// *
-// * q_NED_to_BODY
-// *
-// * With frame-rotation convention, the incremental body-frame
-// * rotation is post-multiplied:
-// *
-// * q_new = q_old * dq
-// * ========================================================================== */
-//
-//static void Navigation_UpdateAttitude(Navigation_t *navigation) {
-//	double p;
-//	double q;
-//	double r;
-//
-//	double dq0;
-//	double dq1;
-//	double dq2;
-//	double dq3;
-//
-//	double half_angle;
-//
-//	Quaternion_t delta_quaternion;
-//	Quaternion_t updated_quaternion;
-//
-//	if (navigation != NULL) {
-//		/*
-//		 * Body angular increment.
-//		 */
-//		p = navigation->body_delta_angle.x_rad;
-//
-//		q = navigation->body_delta_angle.y_rad;
-//
-//		r = navigation->body_delta_angle.z_rad;
-//
-//		/*
-//		 * Small-angle incremental quaternion.
-//		 *
-//		 * For normal 10 ms INS operation this approximation
-//		 * is appropriate for small angular increments.
-//		 */
-//		half_angle = 0.5 * sqrt((p * p) + (q * q) + (r * r));
-//
-//		if (half_angle < 1.0e-12) {
-//			dq0 = 1.0;
-//			dq1 = 0.5 * p;
-//			dq2 = 0.5 * q;
-//			dq3 = 0.5 * r;
-//		} else {
-//			double scale;
-//
-//			scale = sin(half_angle) / half_angle;
-//
-//			dq0 = cos(half_angle);
-//
-//			dq1 = 0.5 * p * scale;
-//
-//			dq2 = 0.5 * q * scale;
-//
-//			dq3 = 0.5 * r * scale;
-//		}
-//
-//		delta_quaternion.w = dq0;
-//		delta_quaternion.x = dq1;
-//		delta_quaternion.y = dq2;
-//		delta_quaternion.z = dq3;
-//
-//		/*
-//		 * IMPORTANT:
-//		 *
-//		 * q_NED_to_BODY(new)
-//		 *
-//		 *     = q_NED_to_BODY(old)
-//		 *       * q_BODY_to_BODY_NEW
-//		 *
-//		 * Therefore the incremental quaternion is
-//		 * post-multiplied.
-//		 */
-//		Quaternion_Multiply(&navigation->attitude_quaternion, &delta_quaternion,
-//				&updated_quaternion);
-//
-//		Quaternion_Normalize(&updated_quaternion);
-//
-//		navigation->attitude_quaternion = updated_quaternion;
-//
-//		/*
-//		 * Convert quaternion to Euler angles for
-//		 * monitoring/output.
-//		 */
-////		Euler_FromQuaternion(&navigation->attitude_quaternion,
-////				&navigation->attitude.roll_rad, &navigation->attitude.pitch_rad,
-////				&navigation->attitude.yaw_rad);
-//	}
-//}
-//
+/* ==========================================================================
+ * Attitude update
+ *
+ * Quaternion represents rotation from NED to body frame.
+ *
+ * q_NED_to_BODY
+ *
+ * With frame-rotation convention, the incremental body-frame
+ * rotation is post-multiplied:
+ *
+ * q_new = q_old * dq
+ * ========================================================================== */
+
+void Navigation_UpdateAttitude(Navigation_t *navigation) {
+	double p;
+	double q;
+	double r;
+
+	double dq0;
+	double dq1;
+	double dq2;
+	double dq3;
+
+	double half_angle;
+
+	Quaternion_t delta_quaternion;
+	Quaternion_t updated_quaternion;
+
+	if (navigation != NULL) {
+		/*
+		 * Body angular increment.
+		 */
+		p = navigation->body_delta_angle.x_rad;
+
+		q = navigation->body_delta_angle.y_rad;
+
+		r = navigation->body_delta_angle.z_rad;
+
+		/*
+		 * Small-angle incremental quaternion.
+		 *
+		 * For normal 10 ms INS operation this approximation
+		 * is appropriate for small angular increments.
+		 */
+		half_angle = 0.5 * sqrt((p * p) + (q * q) + (r * r));
+
+		if (half_angle < 1.0e-12) {
+			dq0 = 1.0;
+			dq1 = 0.5 * p;
+			dq2 = 0.5 * q;
+			dq3 = 0.5 * r;
+		} else {
+			double scale;
+
+			scale = sin(half_angle) / half_angle;
+
+			dq0 = cos(half_angle);
+
+			dq1 = 0.5 * p * scale;
+
+			dq2 = 0.5 * q * scale;
+
+			dq3 = 0.5 * r * scale;
+		}
+
+		delta_quaternion.w = dq0;
+		delta_quaternion.x = dq1;
+		delta_quaternion.y = dq2;
+		delta_quaternion.z = dq3;
+
+		/*
+		 * IMPORTANT:
+		 *
+		 * q_NED_to_BODY(new)
+		 *
+		 *     = q_NED_to_BODY(old)
+		 *       * q_BODY_to_BODY_NEW
+		 *
+		 * Therefore the incremental quaternion is
+		 * post-multiplied.
+		 */
+		Quaternion_Multiply(&navigation->attitude_quaternion, &delta_quaternion,
+				&updated_quaternion);
+
+		Quaternion_Normalize(&updated_quaternion);
+
+		navigation->attitude_quaternion = updated_quaternion;
+
+		/*
+		 * Convert quaternion to Euler angles for
+		 * monitoring/output.
+		 */
+//		Euler_FromQuaternion(&navigation->attitude_quaternion,
+//				&navigation->attitude.roll_rad, &navigation->attitude.pitch_rad,
+//				&navigation->attitude.yaw_rad);
+	}
+}
+
 ///* ==========================================================================
 // * Velocity update
 // * ========================================================================== */
