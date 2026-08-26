@@ -25,9 +25,9 @@ typedef double float64_t;
  * Three-dimensional vector.
  */
 typedef struct {
-	double x;
-	double y;
-	double z;
+	float64_t x;
+	float64_t y;
+	float64_t z;
 } Vector3_t;
 
 /*
@@ -40,19 +40,19 @@ typedef struct {
  * | m20 m21 m22 |
  */
 typedef union {
-	double m_data[3U][3U];
+	float64_t m_data[3U][3U];
 	struct {
-		double m00;
-		double m01;
-		double m02;
+		float64_t m00;
+		float64_t m01;
+		float64_t m02;
 
-		double m10;
-		double m11;
-		double m12;
+		float64_t m10;
+		float64_t m11;
+		float64_t m12;
 
-		double m20;
-		double m21;
-		double m22;
+		float64_t m20;
+		float64_t m21;
+		float64_t m22;
 	};
 } Matrix3_t;
 
@@ -62,35 +62,42 @@ typedef union {
  * q = [w, x, y, z]
  */
 typedef struct {
-	double w;
-	double x;
-	double y;
-	double z;
+	float64_t w;
+	float64_t x;
+	float64_t y;
+	float64_t z;
 } Quaternion_t;
 
 /*
  * Euler angle representation.
  */
 typedef struct {
-	double roll_rad;
-	double pitch_rad;
-	double yaw_rad;
+	float64_t roll_rad;
+	float64_t pitch_rad;
+	float64_t yaw_rad;
 } EulerAngles_t;
 
 /*
  * Position expressed using geodetic coordinates.
  */
 typedef struct {
-	double latitude_rad;
-	double longitude_rad;
-	double altitude_m;
+	float64_t latitude_rad;
+	float64_t longitude_rad;
+	float64_t altitude_m;
 } GeodeticPosition_t;
 
 typedef struct {
-	double latitude_rate_rad_s;
-	double longitude_rate_rad_s;
-	double altitude_rate_m_s;
+	float64_t latitude_rate_rad_s;
+	float64_t longitude_rate_rad_s;
+	float64_t altitude_rate_m_s;
 } GeodeticPositionRate_t;
+
+typedef struct {
+	float64_t north_m_s;
+	float64_t east_m_s;
+	float64_t down_m_s;
+
+} NedVelocity_t;
 
 /*
  * Mathematical operation status.

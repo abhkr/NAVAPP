@@ -14,18 +14,11 @@
  * WGS-84 reference ellipsoid constants.
  */
 #define WGS84_SEMI_MAJOR_AXIS_M       (6378137.0)
+#define WGS84_SEMI_MINOR_AXIS_M       (6356752.314245179)
 #define WGS84_FLATTENING              (1.0 / 298.257223563)
 #define WGS84_EARTH_ROTATION_RAD_S    (7.2921151467e-5)
-#define WGS84_STANDARD_GRAVITY_M_S2   (9.80665)
-
-/**
- * @brief WGS-84 ellipsoid parameters.
- */
-typedef struct {
-	float64_t semi_major_axis_m;
-	float64_t flattening;
-	float64_t eccentricity_squared;
-} Wgs84Ellipsoid_t;
+#define WGS84_FIRST_ECCENTRICITY_SQ   (6.6943799901413165e-3)
+#define WGS84_STANDARD_GRAVITY_M_S2   (9.78)
 
 /**
  * @brief Earth radii at a geodetic latitude.
@@ -56,13 +49,6 @@ typedef struct {
 } Wgs84AngularRates_t;
 
 /**
- * @brief Initialize a WGS-84 ellipsoid.
- *
- * @param ellipsoid Output ellipsoid.
- */
-void Wgs84_Init(Wgs84Ellipsoid_t *ellipsoid);
-
-/**
  * @brief Calculate WGS-84 radii of curvature.
  *
  * @param ellipsoid WGS-84 ellipsoid.
@@ -71,8 +57,7 @@ void Wgs84_Init(Wgs84Ellipsoid_t *ellipsoid);
  *
  * @return true if calculation is valid.
  */
-bool Wgs84_CalculateRadii(const Wgs84Ellipsoid_t *ellipsoid,
-		float64_t latitude_rad, Wgs84Radii_t *radii);
+bool Wgs84_CalculateRadii(float64_t latitude_rad, Wgs84Radii_t *radii);
 
 /**
  * @brief Calculate normal gravity.
@@ -84,8 +69,8 @@ bool Wgs84_CalculateRadii(const Wgs84Ellipsoid_t *ellipsoid,
  *
  * @return true if calculation is valid.
  */
-bool Wgs84_CalculateGravity(const Wgs84Ellipsoid_t *ellipsoid,
-		float64_t latitude_rad, float64_t altitude_m, Wgs84Gravity_t *gravity);
+bool Wgs84_CalculateGravity(float64_t latitude_rad, float64_t altitude_m,
+		Wgs84Gravity_t *gravity);
 
 /**
  * @brief Calculate Earth rotation and transport rates.
@@ -98,9 +83,8 @@ bool Wgs84_CalculateGravity(const Wgs84Ellipsoid_t *ellipsoid,
  *
  * @return true if calculation is valid.
  */
-bool Wgs84_CalculateAngularRates(const Wgs84Ellipsoid_t *ellipsoid,
-		float64_t latitude_rad, float64_t altitude_m,
-		const Vector3_t *velocity_ned_m_s, Wgs84AngularRates_t *rates);
+bool Wgs84_CalculateAngularRates(float64_t latitude_rad, float64_t altitude_m,
+		const NedVelocity_t *velocity_ned_m_s, Wgs84AngularRates_t *rates);
 
 /**
  * @brief Calculate geodetic position rate.
@@ -113,8 +97,7 @@ bool Wgs84_CalculateAngularRates(const Wgs84Ellipsoid_t *ellipsoid,
  *
  * @return true if calculation is valid.
  */
-bool Wgs84_CalculatePositionRate(const Wgs84Ellipsoid_t *ellipsoid,
-		float64_t latitude_rad, float64_t altitude_m,
+bool Wgs84_CalculatePositionRate(float64_t latitude_rad, float64_t altitude_m,
 		const Vector3_t *velocity_ned_m_s,
 		GeodeticPositionRate_t *position_rate);
 

@@ -6,6 +6,7 @@
 #include "dcm.h"
 #include "quaternion.h"
 #include "transform.h"
+#include "matrix.h"
 
 ///* ==========================================================================
 // * Constants
@@ -83,16 +84,26 @@ void Navigation_Init_From_Mdl(const NavigationMdl_t *mdl_data,
 				mdl_data->velocity.down_m_s;
 
 		/* Initialize Attitude */
-		navigation->pure_solution.attitude.euler.yaw_rad =
-				mdl_data->attitude.euler.yaw_rad;
-		navigation->pure_solution.attitude.euler.pitch_rad =
-				mdl_data->attitude.euler.pitch_rad;
-		navigation->pure_solution.attitude.euler.roll_rad =
-				mdl_data->attitude.euler.roll_rad;
+		navigation->pure_solution.attitude.yaw_rad = mdl_data->attitude.yaw_rad;
+		navigation->pure_solution.attitude.pitch_rad =
+				mdl_data->attitude.pitch_rad;
+		navigation->pure_solution.attitude.roll_rad =
+				mdl_data->attitude.roll_rad;
 
-		/* Initialize Quaternion - Ned 2 Body */
-		Transform_EulerToQuaternion(&mdl_data->attitude.euler,
+		/* Initialize Quaternion & DCM - Ned 2 Body */
+		Transform_EulerToQuaternion(&mdl_data->attitude,
 				&navigation->pure_solution.quaternion);
+		Transform_EulerToDcm(&mdl_data->attitude, &navigation->dcm_ned_to_body);
+
+		/* Initialize Earth Radii */
+		Wgs84_CalculateRadii(navigation->pure_solution.position.latitude_rad,
+				&navigation->radius);
+
+		/* Initialize earth rotation */
+		Wgs84_CalculateAngularRates(
+				navigation->pure_solution.position.latitude_rad,
+				navigation->pure_solution.position.altitude_m,
+				&navigation->pure_solution.velocity, &navigation->rates);
 
 	}
 }
@@ -166,7 +177,7 @@ void Navigation_Init_From_Mdl(const NavigationMdl_t *mdl_data,
 //}
 //
 static void Navigation_Coning_Compensate(const ImuMeasurement_t samples[4],
-		ImuMeasurement_t *corrected) {
+		Navigation_t *navigation) {
 
 	Vector3_t theta_sum;
 
@@ -249,11 +260,12 @@ static void Navigation_Coning_Compensate(const ImuMeasurement_t samples[4],
 	 * 6. Total body-frame velocity increment
 	 * --------------------------------------------------------- */
 
-	Vector3_Add(&theta_sum, &cone_total, &corrected->gyro_rad_delt);
+	Vector3_Add(&theta_sum, &cone_total,
+			&navigation->imu_compensated.gyro_rad_delt);
 }
 
 void Navigation_Sculling_Compensate(const ImuMeasurement_t samples[4],
-		ImuMeasurement_t *corrected) {
+		Navigation_t *navigation) {
 
 	Vector3_t sum_delta_v;
 	Vector3_t scull_k1;
@@ -356,22 +368,21 @@ void Navigation_Sculling_Compensate(const ImuMeasurement_t samples[4],
 	 * 6. Total body-frame velocity increment
 	 * --------------------------------------------------------- */
 
-	Vector3_Add(&sum_delta_v, &scull_total, &corrected->accel_m_s_delt);
+	Vector3_Add(&sum_delta_v, &scull_total,
+			&navigation->imu_compensated.accel_m_s_delt);
 
 }
 
-void Navigation_Apply_Coning_Sculling(const Navigation_t *navigation) {
+void Navigation_Apply_Coning_Sculling(Navigation_t *navigation) {
 
 	Vector3_Zero(&navigation->imu_compensated.gyro_rad_delt);
 	Vector3_Zero(&navigation->imu_compensated.accel_m_s_delt);
 
 	/* Coning Compensation */
-	Navigation_Coning_Compensate(navigation->imu_samples,
-			&navigation->imu_compensated);
+	Navigation_Coning_Compensate(navigation->imu_samples, navigation);
 
 	/* Sculling Compensation */
-	Navigation_Sculling_Compensate(navigation->imu_samples,
-			&navigation->imu_compensated);
+	Navigation_Sculling_Compensate(navigation->imu_samples, navigation);
 
 }
 
@@ -625,21 +636,15 @@ void Navigation_Apply_Coning_Sculling(const Navigation_t *navigation) {
  * ========================================================================== */
 
 void Navigation_UpdateAttitude(Navigation_t *navigation) {
-	double p;
-	double q;
-	double r;
+	float64_t p;
+	float64_t q;
+	float64_t r;
 
-	double dq0;
-	double dq1;
-	double dq2;
-	double dq3;
-
-	double half_angle;
 	float64_t scale_term;
 	float64_t theta_mag_square;
 
-	Quaternion_t temp;
-	Quaternion_t delta_quaternion;
+	Quaternion_t delta_quaternion_b;
+	Quaternion_t delta_quaternion_n;
 	Quaternion_t updated_quaternion;
 
 	if (navigation != NULL) {
@@ -656,30 +661,64 @@ void Navigation_UpdateAttitude(Navigation_t *navigation) {
 		scale_term = (0.5 - (theta_mag_square / 48.0)
 				+ (theta_mag_square * theta_mag_square) / 3840.0);
 
-		half_angle = 0.5 * sqrt((p * p) + (q * q) + (r * r));
-		theta_mag_square = ((p * p) + (q * q) + (r * r));
+		delta_quaternion_b.w = (1.0 - (theta_mag_square / 8.0)
+				+ (theta_mag_square * theta_mag_square) / 384.0);
 
-		delta_quaternion.w = (1.0 - (theta_mag_square / 8.0)
-				+ (theta_mag_square * theta_mag_square) / 3840.0);
-
-		delta_quaternion.x = scale_term * p;
-		delta_quaternion.y = scale_term * q;
-		delta_quaternion.z = scale_term * r;
+		delta_quaternion_b.x = scale_term * p;
+		delta_quaternion_b.y = scale_term * q;
+		delta_quaternion_b.z = scale_term * r;
 
 		Quaternion_Multiply(&navigation->pure_solution.quaternion,
-				&delta_quaternion, &updated_quaternion);
+				&delta_quaternion_b, &updated_quaternion);
 
 		Quaternion_Normalize(&updated_quaternion);
+		navigation->pure_solution.quaternion = updated_quaternion;
 
-//		navigation->attitude_quaternion = updated_quaternion;
+		/*
+		 * Earth rate compensation
+		 */
+		p = (navigation->rates.earth_rate_ned_rad_s.x
+				+ navigation->rates.transport_rate_ned_rad_s.x)
+				* NAVIGATION_UPDATE_PERIOD_S;
+		q = (navigation->rates.earth_rate_ned_rad_s.y
+				+ navigation->rates.transport_rate_ned_rad_s.y)
+				* NAVIGATION_UPDATE_PERIOD_S;
+		r = (navigation->rates.earth_rate_ned_rad_s.z
+				+ navigation->rates.transport_rate_ned_rad_s.z)
+				* NAVIGATION_UPDATE_PERIOD_S;
+
+		theta_mag_square = ((p * p) + (q * q) + (r * r));
+		scale_term = (0.5 - (theta_mag_square / 48.0)
+				+ (theta_mag_square * theta_mag_square) / 3840.0);
+
+		delta_quaternion_n.w = (1.0 - (theta_mag_square / 8.0)
+				+ (theta_mag_square * theta_mag_square) / 384.0);
+
+		delta_quaternion_n.x = scale_term * p;
+		delta_quaternion_n.y = scale_term * q;
+		delta_quaternion_n.z = scale_term * r;
+
+		Quaternion_Inverse(&delta_quaternion_n, &delta_quaternion_n);
+
+		Quaternion_Multiply(&delta_quaternion_n, &updated_quaternion,
+				&navigation->pure_solution.quaternion);
+
+		Quaternion_Normalize(&navigation->pure_solution.quaternion);
+
+		/* Update DCM */
+		Transform_QuaternionToDcm(&navigation->pure_solution.quaternion,
+				&navigation->dcm_body_to_ned);
+		Matrix3_Transpose(&navigation->dcm_body_to_ned,
+				&navigation->dcm_ned_to_body);
 
 		/*
 		 * Convert quaternion to Euler angles for
 		 * monitoring/output.
 		 */
-//		Euler_FromQuaternion(&navigation->attitude_quaternion,
-//				&navigation->attitude.roll_rad, &navigation->attitude.pitch_rad,
-//				&navigation->attitude.yaw_rad);
+//		Transform_DcmToEuler(&navigation->dcm_ned_to_body,
+//				&navigation->pure_solution.attitude);
+		Transform_QuaternionToEuler(&navigation->pure_solution.quaternion,
+				&navigation->pure_solution.attitude);
 	}
 }
 

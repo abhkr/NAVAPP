@@ -24,8 +24,8 @@
 #define NAVIGATION_IMU_SAMPLE_PERIOD_S (0.0025)
 
 #define CONE_K1_COEFF             (214.0 / 315.0)
-#define CONE_K2_COEFF             (92.0  / 315.0)
-#define CONE_K3_COEFF             (54.0  / 315.0)
+#define CONE_K2_COEFF             (92.0  / 210.0)
+#define CONE_K3_COEFF             (54.0  / 105.0)
 
 #define SCULL_K1_THETA      (54.0  / 105.0)
 #define SCULL_K2_THETA      (92.0  / 105.0)
@@ -43,10 +43,9 @@
 //		ImuMeasurement_t *corrected);
 
 void Navigation_Sculling_Compensate(const ImuMeasurement_t samples[4],
-		ImuMeasurement_t *corrected);
+		Navigation_t *navigation);
 
-void Navigation_Apply_Coning_Sculling(const Navigation_t *navigation,
-		ImuMeasurement_t *corrected);
+void Navigation_Apply_Coning_Sculling(Navigation_t *navigation);
 
 /**
  * @brief Initialize the navigation solution.
@@ -57,7 +56,7 @@ void Navigation_Apply_Coning_Sculling(const Navigation_t *navigation,
  * @param navigation Pointer to navigation state.
  */
 void Navigation_Init_From_Mdl(const NavigationMdl_t *mdl_data,
-		Navigation_t *navigation, NavigationSolution_t *solution);
+		Navigation_t *navigation);
 
 /**
  * @brief Process one IMU sample.
