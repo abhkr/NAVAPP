@@ -9,12 +9,11 @@
 #define MATH_CONSTANTS_H_
 
 #include "math_types.h"
-#include <math.h>
 
-#define MATH_PI              (4.0 * atan(1.0))
+#define MATH_PI              (3.14159265358979323846)
 
-#define MATH_DEG_TO_RAD      (MATH_PI/180.0)
-#define MATH_RAD_TO_DEG      (180.0/MATH_PI)
+#define MATH_DEG_TO_RAD      (0.01745329251994329577)
+#define MATH_RAD_TO_DEG      (57.2957795130823208768)
 
 #define MATH_EPSILON         (1.0e-12)
 

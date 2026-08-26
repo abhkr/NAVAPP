@@ -140,9 +140,6 @@ bool Wgs84_CalculateAngularRates(float64_t latitude_rad, float64_t altitude_m,
 
 		rates->earth_rate_ned_rad_s.z = -earth_rate * sin_latitude;
 
-		printf("earth rate = %lf\t%lf\t%lf\n", rates->earth_rate_ned_rad_s.x,
-				rates->earth_rate_ned_rad_s.y, rates->earth_rate_ned_rad_s.z);
-
 		/*
 		 * Transport rate:
 		 *
