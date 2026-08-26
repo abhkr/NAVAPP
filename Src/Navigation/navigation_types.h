@@ -68,6 +68,17 @@ typedef struct {
 	NavigationAttitude_t attitude;
 	Quaternion_t quaternion;
 
+	/*
+	 * Earth model quantities.
+	 */
+	Vector3_t earth_rate_n_radps;
+	Vector3_t transport_rate_n_radps;
+
+	float64_t gravity_mps2;
+
+	float64_t meridian_radius_m;
+	float64_t prime_vertical_radius_m;
+
 } NavigationSolution_t;
 
 /* ==========================================================================

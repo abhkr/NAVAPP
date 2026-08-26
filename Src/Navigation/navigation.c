@@ -635,7 +635,10 @@ void Navigation_UpdateAttitude(Navigation_t *navigation) {
 	double dq3;
 
 	double half_angle;
+	float64_t scale_term;
+	float64_t theta_mag_square;
 
+	Quaternion_t temp;
 	Quaternion_t delta_quaternion;
 	Quaternion_t updated_quaternion;
 
@@ -643,61 +646,32 @@ void Navigation_UpdateAttitude(Navigation_t *navigation) {
 		/*
 		 * Body angular increment.
 		 */
-		p = navigation->body_delta_angle.x_rad;
+		p = navigation->imu_compensated.gyro_rad_delt.x;
 
-		q = navigation->body_delta_angle.y_rad;
+		q = navigation->imu_compensated.gyro_rad_delt.y;
 
-		r = navigation->body_delta_angle.z_rad;
+		r = navigation->imu_compensated.gyro_rad_delt.z;
 
-		/*
-		 * Small-angle incremental quaternion.
-		 *
-		 * For normal 10 ms INS operation this approximation
-		 * is appropriate for small angular increments.
-		 */
+		theta_mag_square = ((p * p) + (q * q) + (r * r));
+		scale_term = (0.5 - (theta_mag_square / 48.0)
+				+ (theta_mag_square * theta_mag_square) / 3840.0);
+
 		half_angle = 0.5 * sqrt((p * p) + (q * q) + (r * r));
+		theta_mag_square = ((p * p) + (q * q) + (r * r));
 
-		if (half_angle < 1.0e-12) {
-			dq0 = 1.0;
-			dq1 = 0.5 * p;
-			dq2 = 0.5 * q;
-			dq3 = 0.5 * r;
-		} else {
-			double scale;
+		delta_quaternion.w = (1.0 - (theta_mag_square / 8.0)
+				+ (theta_mag_square * theta_mag_square) / 3840.0);
 
-			scale = sin(half_angle) / half_angle;
+		delta_quaternion.x = scale_term * p;
+		delta_quaternion.y = scale_term * q;
+		delta_quaternion.z = scale_term * r;
 
-			dq0 = cos(half_angle);
-
-			dq1 = 0.5 * p * scale;
-
-			dq2 = 0.5 * q * scale;
-
-			dq3 = 0.5 * r * scale;
-		}
-
-		delta_quaternion.w = dq0;
-		delta_quaternion.x = dq1;
-		delta_quaternion.y = dq2;
-		delta_quaternion.z = dq3;
-
-		/*
-		 * IMPORTANT:
-		 *
-		 * q_NED_to_BODY(new)
-		 *
-		 *     = q_NED_to_BODY(old)
-		 *       * q_BODY_to_BODY_NEW
-		 *
-		 * Therefore the incremental quaternion is
-		 * post-multiplied.
-		 */
-		Quaternion_Multiply(&navigation->attitude_quaternion, &delta_quaternion,
-				&updated_quaternion);
+		Quaternion_Multiply(&navigation->pure_solution.quaternion,
+				&delta_quaternion, &updated_quaternion);
 
 		Quaternion_Normalize(&updated_quaternion);
 
-		navigation->attitude_quaternion = updated_quaternion;
+//		navigation->attitude_quaternion = updated_quaternion;
 
 		/*
 		 * Convert quaternion to Euler angles for
