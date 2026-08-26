@@ -6,6 +6,8 @@
 #include "math_constants.h"
 #include "imu_types.h"
 #include "imu.h"
+#include "transform.h"
+#include "math_types.h"
 
 static Navigation_t nav_state;
 
@@ -109,6 +111,7 @@ int main(void) {
 	printf("completed\n");
 
 	fclose(fpout);
+
 	return 0;
 }
 

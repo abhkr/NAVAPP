@@ -7,6 +7,7 @@
 #include "quaternion.h"
 #include "transform.h"
 #include "matrix.h"
+#include "math_types.h"
 
 ///* ==========================================================================
 // * Constants
@@ -707,16 +708,8 @@ void Navigation_UpdateAttitude(Navigation_t *navigation) {
 
 		/* Update DCM */
 		Transform_QuaternionToDcm(&navigation->pure_solution.quaternion,
-				&navigation->dcm_body_to_ned);
-		Matrix3_Transpose(&navigation->dcm_body_to_ned,
 				&navigation->dcm_ned_to_body);
 
-		/*
-		 * Convert quaternion to Euler angles for
-		 * monitoring/output.
-		 */
-//		Transform_DcmToEuler(&navigation->dcm_ned_to_body,
-//				&navigation->pure_solution.attitude);
 		Transform_QuaternionToEuler(&navigation->pure_solution.quaternion,
 				&navigation->pure_solution.attitude);
 	}

@@ -14,6 +14,7 @@
 #include "dcm.h"
 #include "quaternion.h"
 #include "math_constants.h"
+#include "math_types.h"
 
 #define TRANSFORM_HALF_ANGLE       (0.5)
 #define TRANSFORM_SMALL_ANGLE_RAD  (1.0e-10)
@@ -57,23 +58,6 @@ bool Transform_EulerToDcm(const EulerAngles_t *euler, Matrix3_t *dcm) {
 
 	sin_yaw = sin(yaw);
 	cos_yaw = cos(yaw);
-
-	/*
-	 * Passive body-to-navigation DCM:
-	 *
-	 *              | cp*cy       sr*sp*cy-cr*sy   cr*sp*cy+sr*sy |
-	 * C_b^n =      | cp*sy       sr*sp*sy+cr*cy   cr*sp*sy-sr*cy |
-	 *              | -sp         sr*cp            cr*cp          |
-	 *
-	 * where:
-	 *
-	 *     sr = sin(roll)
-	 *     cr = cos(roll)
-	 *     sp = sin(pitch)
-	 *     cp = cos(pitch)
-	 *     sy = sin(yaw)
-	 *     cy = cos(yaw)
-	 */
 
 	dcm->m00 = cos_pitch * cos_yaw;
 
@@ -438,29 +422,21 @@ bool Transform_QuaternionToDcm(const Quaternion_t *quaternion, Matrix3_t *dcm) {
 
 	q3q3 = q3 * q3;
 
-	/*
-	 * Passive body-to-navigation DCM:
-	 *
-	 *              [ 1-2(q2²+q3²)  2(q1q2-q0q3)  2(q1q3+q0q2) ]
-	 * C_b^n =      [ 2(q1q2+q0q3)  1-2(q1²+q3²)  2(q2q3-q0q1) ]
-	 *              [ 2(q1q3-q0q2)  2(q2q3+q0q1)  1-2(q1²+q2²) ]
-	 */
-
 	dcm->m00 = TRANSFORM_ONE - TRANSFORM_TWO * (q2q2 + q3q3);
 
-	dcm->m01 = TRANSFORM_TWO * (q1q2 - q0q3);
+	dcm->m01 = TRANSFORM_TWO * (q1q2 + q0q3);
 
-	dcm->m02 = TRANSFORM_TWO * (q1q3 + q0q2);
+	dcm->m02 = TRANSFORM_TWO * (q1q3 - q0q2);
 
-	dcm->m10 = TRANSFORM_TWO * (q1q2 + q0q3);
+	dcm->m10 = TRANSFORM_TWO * (q1q2 - q0q3);
 
 	dcm->m11 = TRANSFORM_ONE - TRANSFORM_TWO * (q1q1 + q3q3);
 
-	dcm->m12 = TRANSFORM_TWO * (q2q3 - q0q1);
+	dcm->m12 = TRANSFORM_TWO * (q2q3 + q0q1);
 
-	dcm->m20 = TRANSFORM_TWO * (q1q3 - q0q2);
+	dcm->m20 = TRANSFORM_TWO * (q1q3 + q0q2);
 
-	dcm->m21 = TRANSFORM_TWO * (q2q3 + q0q1);
+	dcm->m21 = TRANSFORM_TWO * (q2q3 - q0q1);
 
 	dcm->m22 = TRANSFORM_ONE - TRANSFORM_TWO * (q1q1 + q2q2);
 
