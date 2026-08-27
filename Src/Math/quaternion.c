@@ -166,3 +166,40 @@ MathStatus_t Quaternion_FromRotationVector(const Vector3_t *rotation_vector_rad,
 
 	return MATH_STATUS_OK;
 }
+
+/*---------------------------------------------------------------
+ * Quaternion dot product
+ *---------------------------------------------------------------*/
+static float64_t Quaternion_Dot(const Quaternion_t *q0, const Quaternion_t *q1) {
+	return ((q0->w * q1->w) + (q0->x * q1->x) + (q0->y * q1->y)
+			+ (q0->z * q1->z));
+}
+
+MathStatus_t Quaternion_Midpoint(const Quaternion_t *q0, const Quaternion_t *q1,
+		Quaternion_t *q_mid) {
+	Quaternion_t qb;
+	float64_t dot;
+
+	if ((q0 == NULL) || (q1 == NULL) || (q_mid == NULL)) {
+		return MATH_STATUS_NULL_POINTER;
+	}
+
+	qb = *q1;
+
+	dot = Quaternion_Dot(q0, &qb);
+
+	if (dot < 0.0F) {
+		qb.w = -qb.w;
+		qb.x = -qb.x;
+		qb.y = -qb.y;
+		qb.z = -qb.z;
+	}
+
+	q_mid->w = q0->w + qb.w;
+	q_mid->x = q0->x + qb.x;
+	q_mid->y = q0->y + qb.y;
+	q_mid->z = q0->z + qb.z;
+
+	return Quaternion_Normalize(q_mid);
+}
+

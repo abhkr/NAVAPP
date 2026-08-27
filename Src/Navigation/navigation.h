@@ -24,8 +24,8 @@
 #define NAVIGATION_IMU_SAMPLE_PERIOD_S (0.0025)
 
 #define CONE_K1_COEFF             (214.0 / 315.0)
-#define CONE_K2_COEFF             (92.0  / 210.0)
-#define CONE_K3_COEFF             (54.0  / 105.0)
+#define CONE_K2_COEFF             (92.0  / 315.0) //(92.0  / 210.0)
+#define CONE_K3_COEFF             (54.0  / 315.0) //(54.0  / 105.0)
 
 #define SCULL_K1_THETA      (54.0  / 105.0)
 #define SCULL_K2_THETA      (92.0  / 105.0)

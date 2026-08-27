@@ -31,4 +31,7 @@ MathStatus_t Quaternion_Inverse(const Quaternion_t *quaternion,
 MathStatus_t Quaternion_FromRotationVector(const Vector3_t *rotation_vector_rad,
 		Quaternion_t *result);
 
+MathStatus_t Quaternion_Midpoint(const Quaternion_t *q0, const Quaternion_t *q1,
+		Quaternion_t *q_mid);
+
 #endif /* QUATERNION_H_ */
