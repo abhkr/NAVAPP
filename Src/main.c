@@ -31,35 +31,49 @@ static void Main_Print_Nav_Solution(FILE *fp, const Navigation_t *navstate) {
 //	Main_Print_Euler(&solution->attitude.euler);
 //	printf("\n");
 
-	fprintf(fp, "%0.10lf\t", navstate->imu_compensated.gyro_rad_delt.x);
-	fprintf(fp, "%0.10lf\t", navstate->imu_compensated.gyro_rad_delt.y);
-	fprintf(fp, "%0.10lf\t", navstate->imu_compensated.gyro_rad_delt.z);
+//	fprintf(fp, "%0.10lf\t", navstate->imu_compensated.gyro_rad_delt.x);
+//	fprintf(fp, "%0.10lf\t", navstate->imu_compensated.gyro_rad_delt.y);
+//	fprintf(fp, "%0.10lf\t", navstate->imu_compensated.gyro_rad_delt.z);
+//
+//	fprintf(fp, "%0.10lf\t", navstate->imu_compensated.accel_m_s_delt.x);
+//	fprintf(fp, "%0.10lf\t", navstate->imu_compensated.accel_m_s_delt.y);
+//	fprintf(fp, "%0.10lf\t", navstate->imu_compensated.accel_m_s_delt.z);
 
-	fprintf(fp, "%0.10lf\t", navstate->imu_compensated.accel_m_s_delt.x);
-	fprintf(fp, "%0.10lf\t", navstate->imu_compensated.accel_m_s_delt.y);
-	fprintf(fp, "%0.10lf\t", navstate->imu_compensated.accel_m_s_delt.z);
+	fprintf(fp, "%0.10lf\t", navstate->attitude.yaw_rad * MATH_RAD_TO_DEG);
+	fprintf(fp, "%0.10lf\t", navstate->attitude.pitch_rad * MATH_RAD_TO_DEG);
+	fprintf(fp, "%0.10lf\t", navstate->attitude.roll_rad * MATH_RAD_TO_DEG);
 
+	fprintf(fp, "%0.10lf\t", navstate->velocity.north_m_s);
+	fprintf(fp, "%0.10lf\t", navstate->velocity.east_m_s);
+	fprintf(fp, "%0.10lf\t", navstate->velocity.down_m_s);
+
+	fprintf(fp, "%0.10lf\t", navstate->position.latitude_rad * MATH_RAD_TO_DEG);
 	fprintf(fp, "%0.10lf\t",
-			navstate->pure_solution.attitude.yaw_rad * MATH_RAD_TO_DEG);
-	fprintf(fp, "%0.10lf\t",
-			navstate->pure_solution.attitude.pitch_rad * MATH_RAD_TO_DEG);
-	fprintf(fp, "%0.10lf\t",
-			navstate->pure_solution.attitude.roll_rad * MATH_RAD_TO_DEG);
+			navstate->position.longitude_rad * MATH_RAD_TO_DEG);
+	fprintf(fp, "%0.10lf\t", navstate->position.altitude_m);
 
 	fprintf(fp, "\n");
 }
 
 static void Main_IMU_Isr(void) {
 	nav_state.rcnt++;
-	Imu_AcquireStatic(&imu, nav_state.pure_solution.position.latitude_rad,
-	NAVIGATION_IMU_SAMPLE_PERIOD_S, &nav_state.dcm_ned_to_body);
+	Imu_AcquireStatic(&imu, nav_state.position.latitude_rad,
+	NAVIGATION_IMU_SAMPLE_PERIOD_S, nav_state.gravity.gravity_m_s2,
+			&nav_state.dcm_ned_to_body);
 
 	nav_state.imu_samples[nav_state.imu_sample_count] = imu;
 	nav_state.imu_sample_count++;
 
 	if (nav_state.imu_sample_count == NAVIGATION_IMU_SAMPLE_COUNT) {
 		Navigation_Apply_Coning_Sculling(&nav_state);
-		Navigation_UpdateAttitude(&nav_state);
+
+		Navigation_Update(&nav_state);
+
+//		Navigation_UpdateAttitude(&nav_state);
+//
+//		Navigation_UpdateVelocity(&nav_state);
+//
+//		Navigation_UpdatePosition(&nav_state);
 
 		Main_Print_Nav_Solution(fpout, &nav_state);
 		nav_state.imu_sample_count = 0U;
@@ -81,17 +95,28 @@ static void Main_Mdl(NavigationMdl_t *mdl) {
 	mdl->velocity.down_m_s = 0.0;
 
 	mdl->leveling_time = 5.0;
-	mdl->navigation_time = 10.0;
+	mdl->navigation_time = 100.0;
 }
 
 static void Main_Navigation(NavigationMdl_t *mdl_data) {
+	Vector3_t initial_ecef_pos;
+	Vector3_t final_ecef_pos;
+	Vector3_t position_eer;
+
 	ins_mode = INS_MODE_NAVIGATION;
 
 	Navigation_Init_From_Mdl(mdl_data, &nav_state);
 
+	WGS84_LlaToEcef(&nav_state.position, &initial_ecef_pos);
+
 	while (nav_state.rcnt <= ((uint32_t) (mdl_data->navigation_time * 400.0))) {
 		Main_IMU_Isr();
 	}
+	WGS84_LlaToEcef(&nav_state.position, &final_ecef_pos);
+	Vector3_Subtract(&initial_ecef_pos, &final_ecef_pos, &position_eer);
+
+	printf("Position Err : %lf\t%lf\t%lf\n", position_eer.x, position_eer.y,
+			position_eer.z);
 }
 
 int main(void) {

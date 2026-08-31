@@ -41,7 +41,7 @@ typedef struct {
 } NavigationMdl_t;
 
 /* ==========================================================================
- * Navigation solution
+ * Navigation state
  * ========================================================================== */
 
 typedef struct {
@@ -49,23 +49,19 @@ typedef struct {
 	NedVelocity_t velocity;
 	EulerAngles_t attitude;
 	Quaternion_t quaternion;
-} NavigationSolution_t;
 
-/* ==========================================================================
- * Navigation state
- * ========================================================================== */
-
-typedef struct {
-	NavigationSolution_t pure_solution;
 	/*
 	 * Earth model quantities.
 	 */
 	Wgs84AngularRates_t rates;
 	Wgs84Radii_t radius;
 
-	float64_t gravity_mps2;
+	Wgs84Gravity_t gravity;
+
 	Matrix3_t dcm_ned_to_body;
 	Matrix3_t dcm_body_to_ned;
+
+	NedVelocity_t mid_velocity;
 
 	ImuMeasurement_t imu_compensated;
 	ImuMeasurement_t imu_samples[NAVIGATION_IMU_SAMPLE_COUNT];

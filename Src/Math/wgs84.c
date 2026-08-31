@@ -39,6 +39,52 @@ static float64_t Wgs84_CalculateMeridianRadius(float64_t latitude_rad);
 
 static float64_t Wgs84_CalculateNormalGravity(float64_t latitude_rad);
 
+MathStatus_t WGS84_LlaToEcef(const GeodeticPosition_t *lla, Vector3_t *ecef_m) {
+	MathStatus_t status;
+
+	double eccentricity_squared;
+	double sin_latitude;
+	double cos_latitude;
+	double sin_longitude;
+	double cos_longitude;
+	double denominator;
+	double prime_vertical_radius_m;
+
+	status = MATH_STATUS_NULL_POINTER;
+
+	if ((lla != NULL) && (ecef_m != NULL)) {
+		eccentricity_squared =
+		WGS84_FLATTENING * (2.0 - WGS84_FLATTENING);
+
+		sin_latitude = sin(lla->latitude_rad);
+
+		cos_latitude = cos(lla->latitude_rad);
+
+		sin_longitude = sin(lla->longitude_rad);
+
+		cos_longitude = cos(lla->longitude_rad);
+
+		denominator = sqrt(
+				1.0 - (eccentricity_squared * sin_latitude * sin_latitude));
+
+		prime_vertical_radius_m =
+		WGS84_SEMI_MAJOR_AXIS_M / denominator;
+
+		ecef_m->x = (prime_vertical_radius_m + lla->altitude_m) * cos_latitude
+				* cos_longitude;
+
+		ecef_m->y = (prime_vertical_radius_m + lla->altitude_m) * cos_latitude
+				* sin_longitude;
+
+		ecef_m->z = ((prime_vertical_radius_m * (1.0 - eccentricity_squared))
+				+ lla->altitude_m) * sin_latitude;
+
+		status = MATH_STATUS_OK;
+	}
+
+	return status;
+}
+
 bool Wgs84_CalculateRadii(float64_t latitude_rad, Wgs84Radii_t *radii) {
 	bool status;
 
@@ -78,12 +124,16 @@ bool Wgs84_CalculateGravity(float64_t latitude_rad, float64_t altitude_m,
 		 * altitude range. A higher-order gravity model
 		 * can be added later if required.
 		 */
-		radius_ratio = altitude_m /
-		WGS84_EQUATORIAL_RADIUS_M;
+		radius_ratio = altitude_m / WGS84_EQUATORIAL_RADIUS_M;
 
-		altitude_factor = 1.0 - (2.0 * radius_ratio);
+		altitude_factor = 1.0 - (2.0 * radius_ratio)
+				+ (3.0 * radius_ratio * radius_ratio);
 
 		gravity->gravity_m_s2 = surface_gravity * altitude_factor;
+
+		gravity->n_gravity = 0.0;
+		gravity->e_gravity = 0.0;
+		gravity->d_gravity = gravity->gravity_m_s2;
 
 		status = true;
 	}
@@ -274,12 +324,12 @@ static float64_t Wgs84_CalculateNormalGravity(float64_t latitude_rad) {
 	 * (1 + k sin²(L)) /
 	 * sqrt(1 - e² sin²(L))
 	 */
-	numerator = 1.0 + (0.00193185265241 * sin_squared);
+	numerator = 1.0 + (WGS84_GRAVITY_K * sin_squared);
 
 	denominator = sqrt(1.0 - (WGS84_ECCENTRICITY_SQUARED * sin_squared));
 
 	/*
 	 * Equatorial normal gravity.
 	 */
-	return 9.7803253359 * numerator / denominator;
+	return ((WGS84_EQUATOR_GRAVITY_MPS2 * numerator) / denominator);
 }

@@ -15,6 +15,8 @@ MathStatus_t Quaternion_Identity(Quaternion_t *result);
 MathStatus_t Quaternion_Create(float64_t w, float64_t x, float64_t y,
 		float64_t z, Quaternion_t *result);
 
+MathStatus_t Quaternion_Assign(const Quaternion_t *from_q, Quaternion_t *to_q);
+
 MathStatus_t Quaternion_Multiply(const Quaternion_t *lhs,
 		const Quaternion_t *rhs, Quaternion_t *result);
 

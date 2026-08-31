@@ -41,6 +41,20 @@ MathStatus_t Quaternion_Create(float64_t w, float64_t x, float64_t y,
 	return MATH_STATUS_OK;
 }
 
+MathStatus_t Quaternion_Assign(const Quaternion_t *from_q, Quaternion_t *to_q) {
+
+	if (from_q == NULL || to_q == NULL) {
+		return MATH_STATUS_NULL_POINTER;
+	}
+
+	to_q->w = from_q->w;
+	to_q->x = from_q->x;
+	to_q->y = from_q->y;
+	to_q->z = from_q->z;
+
+	return MATH_STATUS_OK;
+}
+
 MathStatus_t Quaternion_Multiply(const Quaternion_t *lhs,
 		const Quaternion_t *rhs, Quaternion_t *result) {
 

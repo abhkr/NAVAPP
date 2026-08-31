@@ -18,7 +18,11 @@
 #define WGS84_FLATTENING              (1.0 / 298.257223563)
 #define WGS84_EARTH_ROTATION_RAD_S    (7.2921151467e-5)
 #define WGS84_FIRST_ECCENTRICITY_SQ   (6.6943799901413165e-3)
-#define WGS84_STANDARD_GRAVITY_M_S2   (9.78)
+
+#define WGS84_EQUATOR_GRAVITY_MPS2    (9.7803253359)
+#define WGS84_POLAR_GRAVITY_MPS2      (9.8321849378)
+
+#define WGS84_GRAVITY_K               (0.00193185265241)
 
 /**
  * @brief Earth radii at a geodetic latitude.
@@ -36,6 +40,9 @@ typedef struct {
  */
 typedef struct {
 	float64_t gravity_m_s2;
+	float64_t n_gravity;
+	float64_t e_gravity;
+	float64_t d_gravity;
 } Wgs84Gravity_t;
 
 /**
@@ -47,6 +54,15 @@ typedef struct {
 	Vector3_t earth_rate_ned_rad_s;
 	Vector3_t transport_rate_ned_rad_s;
 } Wgs84AngularRates_t;
+
+typedef struct {
+	double latitude_rad;
+	double longitude_rad;
+	double altitude_m;
+
+} Lla_t;
+
+MathStatus_t WGS84_LlaToEcef(const GeodeticPosition_t *lla, Vector3_t *ecef_m);
 
 /**
  * @brief Calculate WGS-84 radii of curvature.

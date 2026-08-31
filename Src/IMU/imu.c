@@ -58,7 +58,7 @@ SensorStatus_t Imu_Acquire(ImuMeasurement_t *measurement) {
 }
 
 SensorStatus_t Imu_AcquireStatic(ImuMeasurement_t *measurement,
-		const float64_t lattitude, const float64_t del_t,
+		const float64_t lattitude, const float64_t del_t, const float64_t g_val,
 		const Matrix3_t *dcm_ned2body) {
 
 	Vector3_t gyro_rad_delt;
@@ -74,7 +74,7 @@ SensorStatus_t Imu_AcquireStatic(ImuMeasurement_t *measurement,
 
 	acc_m_s_delt.x = 0.0;
 	acc_m_s_delt.y = 0.0;
-	acc_m_s_delt.z = -WGS84_STANDARD_GRAVITY_M_S2;
+	acc_m_s_delt.z = -g_val;
 
 	Vector3_Scale(&gyro_rad_delt, del_t, &gyro_rad_delt);
 

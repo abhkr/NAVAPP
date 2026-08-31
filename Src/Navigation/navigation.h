@@ -23,6 +23,8 @@
 #define NAVIGATION_UPDATE_PERIOD_S     (0.010)
 #define NAVIGATION_IMU_SAMPLE_PERIOD_S (0.0025)
 
+#define NAVIGATION_MIDPOINT_ITERATIONS (3U)
+
 #define CONE_K1_COEFF             (214.0 / 315.0)
 #define CONE_K2_COEFF             (92.0  / 315.0) //(92.0  / 210.0)
 #define CONE_K3_COEFF             (54.0  / 315.0) //(54.0  / 105.0)
@@ -41,9 +43,6 @@
 
 //void Navigation_Coning_Compensate(const ImuMeasurement_t samples[4],
 //		ImuMeasurement_t *corrected);
-
-void Navigation_Sculling_Compensate(const ImuMeasurement_t samples[4],
-		Navigation_t *navigation);
 
 void Navigation_Apply_Coning_Sculling(Navigation_t *navigation);
 
@@ -88,20 +87,6 @@ void Navigation_ImuUpdate(Navigation_t *navigation, const ImuMeasurement_t *imu)
  * @param navigation Pointer to navigation state.
  */
 void Navigation_Update(Navigation_t *navigation);
-
-void Navigation_UpdateAttitude(Navigation_t *navigation);
-
-/**
- * @brief Get the current navigation solution.
- *
- * @param navigation Pointer to navigation state.
- * @param solution Pointer to output navigation solution.
- *
- * @return true if solution is valid.
- * @return false otherwise.
- */
-bool Navigation_GetSolution(const Navigation_t *navigation,
-		NavigationSolution_t *solution);
 
 /**
  * @brief Check whether a new 10 ms navigation solution is available.

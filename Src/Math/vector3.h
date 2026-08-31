@@ -12,6 +12,8 @@
 
 MathStatus_t Vector3_Create(double x, double y, double z, Vector3_t *result);
 
+MathStatus_t Vector3_Assign(const Vector3_t *lhs, Vector3_t *result);
+
 MathStatus_t Vector3_Zero(Vector3_t *result);
 
 MathStatus_t Vector3_Add(const Vector3_t *lhs, const Vector3_t *rhs,

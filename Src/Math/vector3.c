@@ -17,6 +17,19 @@ MathStatus_t Vector3_Create(double x, double y, double z, Vector3_t *result) {
 	return MATH_STATUS_OK;
 }
 
+MathStatus_t Vector3_Assign(const Vector3_t *lhs, Vector3_t *result) {
+
+	if (lhs == NULL || result == NULL) {
+		return MATH_STATUS_NULL_POINTER;
+	}
+
+	result->x = lhs->x;
+	result->y = lhs->y;
+	result->z = lhs->z;
+
+	return MATH_STATUS_OK;
+}
+
 MathStatus_t Vector3_Zero(Vector3_t *result) {
 
 	if (result == NULL) {
