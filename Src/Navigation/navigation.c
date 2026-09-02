@@ -593,9 +593,35 @@ static void Navigation_ComputeTransportRate(double latitude_rad,
 	}
 }
 
-static double Navigation_ComputeMidpointAltitude(const Navigation_t *state,
+static void Navigation_ComputeMidpointAltitude(const Navigation_t *state,
 		const Vector3_t *velocity_mid_n_mps, double dt_sec) {
-	return state->position.altitude_m - (0.5 * velocity_mid_n_mps->z * dt_sec);
+
+	state->mid_position.altitude_m = state->position.altitude_m
+			- (0.5 * velocity_mid_n_mps->z * dt_sec);
+}
+
+static void Navigation_ComputeMidpointLatitude(const Navigation_t *state,
+		const NedVelocity_t *velocity_mid_n_mps, double dt_sec) {
+
+	double latitude_rad;
+	Wgs84Radii_t mid_radii;
+	uint32_t iteration;
+
+	if ((state != NULL) && (velocity_mid_n_mps != NULL)) {
+		latitude_rad = state->position.latitude_rad;
+		for (iteration = 0U; iteration < 3U; iteration++) {
+			Wgs84_CalculateRadii(latitude_rad, &mid_radii);
+
+			latitude_rad = state->position.latitude_rad
+					+ (0.5 * dt_sec * velocity_mid_n_mps->north_m_s
+							/ (mid_radii.meridian_radius_m
+									+ state->mid_position.altitude_m));
+		}
+
+		state->mid_position.latitude_rad = latitude_rad;
+
+	}
+
 }
 
 //static void Navigation_ComputeMidpointLatitude(const Navigation_t *state,
@@ -629,7 +655,6 @@ static void Navigation_ComputeEarthAcceleration(const Navigation_t *state,
 		NedVelocity_t *omega) {
 
 	Vector3_t total_rate_n_radps;
-	Vector3_t cross_product;
 	Vector3_t ned_vel;
 	Vector3_t coriolis;
 
@@ -655,47 +680,37 @@ static void Navigation_ComputeEarthAcceleration(const Navigation_t *state,
 	}
 }
 
-#if 0
-		static void Navigation_ComputeMidpointState(const Navigation_t *state,
-				const Vector3_t *velocity_mid_n_mps, double dt_sec,
-				double *latitude_mid_rad, double *altitude_mid_m,
-				double *meridian_radius_m, double *prime_vertical_radius_m,
-				Vector3_t *gravity_mid_n_mps2, Vector3_t *earth_rate_mid_n_radps,
-				Vector3_t *transport_rate_mid_n_radps) {
+static void Navigation_ComputeMidpointState(const Navigation_t *state,
+		const NedVelocity_t *velocity_mid_n_mps) {
 
-			if ((state != NULL) && (velocity_mid_n_mps != NULL)
-					&& (latitude_mid_rad != NULL) && (altitude_mid_m != NULL)
-					&& (meridian_radius_m != NULL) && (prime_vertical_radius_m != NULL)
-					&& (gravity_mid_n_mps2 != NULL) && (earth_rate_mid_n_radps != NULL)
-					&& (transport_rate_mid_n_radps != NULL)) {
+	if ((state != NULL) && (velocity_mid_n_mps != NULL)) {
 
-				/* * 1. Midpoint altitude. */
-				*altitude_mid_m = Navigation_ComputeMidpointAltitude(state,
-						velocity_mid_n_mps, dt_sec);
+		/* * 1. Midpoint altitude. */
+		Navigation_ComputeMidpointAltitude(state, velocity_mid_n_mps,
+		NAVIGATION_UPDATE_PERIOD_S);
 
-				/* * 2. Midpoint latitude. */
-				Navigation_ComputeMidpointLatitude(state, velocity_mid_n_mps,
-						*altitude_mid_m, dt_sec, latitude_mid_rad);
+		/* * 2. Midpoint latitude. */
+		Navigation_ComputeMidpointLatitude(state, velocity_mid_n_mps,
+				*altitude_mid_m, dt_sec, latitude_mid_rad);
 
-				/* * 3. WGS-84 radii. */
-				WGS84_ComputeRadii(*latitude_mid_rad, meridian_radius_m,
-						prime_vertical_radius_m);
+		/* * 3. WGS-84 radii. */
+		WGS84_ComputeRadii(*latitude_mid_rad, meridian_radius_m,
+				prime_vertical_radius_m);
 
-				/* * 4. Gravity at midpoint. */
-				WGS84_ComputeGravity(*latitude_mid_rad, *altitude_mid_m,
-						gravity_mid_n_mps2);
+		/* * 4. Gravity at midpoint. */
+		WGS84_ComputeGravity(*latitude_mid_rad, *altitude_mid_m,
+				gravity_mid_n_mps2);
 
-				/* * 5. Earth rotation at midpoint. */
-				Navigation_ComputeEarthRate(*latitude_mid_rad, earth_rate_mid_n_radps);
+		/* * 5. Earth rotation at midpoint. */
+		Navigation_ComputeEarthRate(*latitude_mid_rad, earth_rate_mid_n_radps);
 
-				/* * 6. Transport rate at midpoint. */
-				Navigation_ComputeTransportRate(*latitude_mid_rad, *altitude_mid_m,
-						velocity_mid_n_mps, *meridian_radius_m,
-						*prime_vertical_radius_m, transport_rate_mid_n_radps);
+		/* * 6. Transport rate at midpoint. */
+		Navigation_ComputeTransportRate(*latitude_mid_rad, *altitude_mid_m,
+				velocity_mid_n_mps, *meridian_radius_m,
+				*prime_vertical_radius_m, transport_rate_mid_n_radps);
 
-			}
-		}
-#endif
+	}
+}
 
 /* ==========================================================================
  * Attitude update
@@ -814,10 +829,14 @@ static void Navigation_UpdateVelocity(Navigation_t *navigation) {
 
 	NedVelocity_t omega;
 
-	NedVelocity_t initial_velocity;
+	NedVelocity_t velocity_initial_n_mps;
+	NedVelocity_t velocity_predicted_n_mps;
+	NedVelocity_t velocity_mid_n_mps;
+
+	uint32_t iteration;
 
 	/* Latch initial velocity */
-	initial_velocity = navigation->velocity;
+	velocity_initial_n_mps = navigation->velocity;
 
 	ned_gravity.x = navigation->gravity.n_gravity;
 	ned_gravity.y = navigation->gravity.e_gravity;
@@ -833,6 +852,36 @@ static void Navigation_UpdateVelocity(Navigation_t *navigation) {
 
 		/* Predictor */
 		Navigation_ComputeEarthAcceleration(navigation, &omega);
+
+		velocity_predicted_n_mps.north_m_s = velocity_initial_n_mps.north_m_s
+				+ specific_force_ned.x
+				+ (navigation->gravity.n_gravity + omega.north_m_s)
+						* NAVIGATION_UPDATE_PERIOD_S;
+
+		velocity_predicted_n_mps.east_m_s = velocity_initial_n_mps.east_m_s
+				+ specific_force_ned.y
+				+ (navigation->gravity.e_gravity + omega.east_m_s)
+						* NAVIGATION_UPDATE_PERIOD_S;
+
+		velocity_predicted_n_mps.down_m_s = velocity_initial_n_mps.down_m_s
+				+ specific_force_ned.z
+				+ (navigation->gravity.d_gravity + omega.down_m_s)
+						* NAVIGATION_UPDATE_PERIOD_S;
+
+		/* predictor - corrector */
+		for (iteration = 0; iteration < 3; iteration++) {
+			velocity_mid_n_mps.north_m_s = 0.5
+					* (velocity_initial_n_mps.north_m_s
+							+ velocity_predicted_n_mps.north_m_s);
+
+			velocity_mid_n_mps.east_m_s = 0.5
+					* (velocity_initial_n_mps.east_m_s
+							+ velocity_predicted_n_mps.east_m_s);
+
+			velocity_mid_n_mps.down_m_s = 0.5
+					* (velocity_initial_n_mps.down_m_s
+							+ velocity_predicted_n_mps.down_m_s);
+		}
 
 //		Dcm_TransposeMultiplyVector(&navigation->dcm_ned_to_body,
 //				&navigation->body_delta_velocity, &specific_force_ned);

@@ -51,6 +51,11 @@ typedef struct {
 	Quaternion_t quaternion;
 
 	/*
+	 * Mid point values
+	 */
+	GeodeticPosition_t mid_position;
+
+	/*
 	 * Earth model quantities.
 	 */
 	Wgs84AngularRates_t rates;
