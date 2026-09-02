@@ -68,3 +68,7 @@ vcpkg_installed/
 Testing/
 .cache/
 /Debug/
+
+plot_data.m
+
+.settings
