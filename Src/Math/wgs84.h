@@ -73,7 +73,7 @@ MathStatus_t WGS84_LlaToEcef(const GeodeticPosition_t *lla, Vector3_t *ecef_m);
  *
  * @return true if calculation is valid.
  */
-bool Wgs84_CalculateRadii(float64_t latitude_rad, Wgs84Radii_t *radii);
+bool Wgs84_CalculateRadii(const float64_t latitude_rad, Wgs84Radii_t *radii);
 
 /**
  * @brief Calculate normal gravity.

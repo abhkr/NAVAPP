@@ -48,9 +48,8 @@ static void Navigation_UpdateGravity(Navigation_t *navigation);
 static void Navigation_ComputeEarthRate(float64_t latitude_rad,
 		Vector3_t *earth_rate_n_radps);
 
-static void Navigation_ComputeTransportRate(double latitude_rad,
-		double altitude_m, const Vector3_t *velocity_n_mps,
-		double meridian_radius_m, double prime_vertical_radius_m,
+static void Navigation_ComputeTransportRate(GeodeticPosition_t position_m,
+		const NedVelocity_t *velocity_n_mps, Wgs84Radii_t radius_m,
 		Vector3_t *transport_rate_n_radps);
 
 static void Navigation_UpdateAttitude(Navigation_t *navigation);
@@ -557,7 +556,6 @@ static void Navigation_UpdateGravity(Navigation_t *navigation) {
 
 static void Navigation_ComputeEarthRate(float64_t latitude_rad,
 		Vector3_t *earth_rate_n_radps) {
-	float64_t latitude;
 
 	if (earth_rate_n_radps != NULL) {
 		earth_rate_n_radps->x = WGS84_EARTH_ROTATION_RAD_S * cos(latitude_rad);
@@ -570,38 +568,34 @@ static void Navigation_ComputeEarthRate(float64_t latitude_rad,
  * Transport rate
  * ========================================================================== */
 
-static void Navigation_ComputeTransportRate(double latitude_rad,
-		double altitude_m, const Vector3_t *velocity_n_mps,
-		double meridian_radius_m, double prime_vertical_radius_m,
+static void Navigation_ComputeTransportRate(GeodeticPosition_t position_m,
+		const NedVelocity_t *velocity_n_mps, Wgs84Radii_t radius_m,
 		Vector3_t *transport_rate_n_radps) {
-
-	double cos_latitude;
 
 	if ((velocity_n_mps != NULL) && (transport_rate_n_radps != NULL)) {
 
-		cos_latitude = cos(latitude_rad);
+		transport_rate_n_radps->x = velocity_n_mps->east_m_s
+				/ (radius_m.prime_vertical_radius_m + position_m.altitude_m);
 
-		transport_rate_n_radps->x = velocity_n_mps->y
-				/ (prime_vertical_radius_m + altitude_m);
+		transport_rate_n_radps->y = -velocity_n_mps->north_m_s
+				/ (radius_m.meridian_radius_m + position_m.altitude_m);
 
-		transport_rate_n_radps->y = -velocity_n_mps->x
-				/ (meridian_radius_m + altitude_m);
-
-		transport_rate_n_radps->z = -(velocity_n_mps->y * tan(latitude_rad))
-				/ (prime_vertical_radius_m + altitude_m);
+		transport_rate_n_radps->z = -(velocity_n_mps->east_m_s
+				* tan(position_m.latitude_rad))
+				/ (radius_m.prime_vertical_radius_m + position_m.altitude_m);
 
 	}
 }
 
-static void Navigation_ComputeMidpointAltitude(const Navigation_t *state,
-		const Vector3_t *velocity_mid_n_mps, double dt_sec) {
+static void Navigation_ComputeMidpointAltitude(Navigation_t *state,
+		const NedVelocity_t *velocity_mid_n_mps) {
 
 	state->mid_position.altitude_m = state->position.altitude_m
-			- (0.5 * velocity_mid_n_mps->z * dt_sec);
+			- (0.5 * velocity_mid_n_mps->down_m_s * NAVIGATION_UPDATE_PERIOD_S);
 }
 
-static void Navigation_ComputeMidpointLatitude(const Navigation_t *state,
-		const NedVelocity_t *velocity_mid_n_mps, double dt_sec) {
+static void Navigation_ComputeMidpointLatitude(Navigation_t *state,
+		const NedVelocity_t *velocity_mid_n_mps) {
 
 	double latitude_rad;
 	Wgs84Radii_t mid_radii;
@@ -613,7 +607,8 @@ static void Navigation_ComputeMidpointLatitude(const Navigation_t *state,
 			Wgs84_CalculateRadii(latitude_rad, &mid_radii);
 
 			latitude_rad = state->position.latitude_rad
-					+ (0.5 * dt_sec * velocity_mid_n_mps->north_m_s
+					+ (0.5 * NAVIGATION_UPDATE_PERIOD_S
+							* velocity_mid_n_mps->north_m_s
 							/ (mid_radii.meridian_radius_m
 									+ state->mid_position.altitude_m));
 		}
@@ -621,7 +616,6 @@ static void Navigation_ComputeMidpointLatitude(const Navigation_t *state,
 		state->mid_position.latitude_rad = latitude_rad;
 
 	}
-
 }
 
 //static void Navigation_ComputeMidpointLatitude(const Navigation_t *state,
@@ -651,63 +645,62 @@ static void Navigation_ComputeMidpointLatitude(const Navigation_t *state,
 //
 //}
 
-static void Navigation_ComputeEarthAcceleration(const Navigation_t *state,
-		NedVelocity_t *omega) {
+static void Navigation_ComputeEarthAcceleration(
+		const Wgs84AngularRates_t *rates, const NedVelocity_t *velocity_n_mps,
+		Vector3_t *acceleration_n_mps2) {
 
 	Vector3_t total_rate_n_radps;
 	Vector3_t ned_vel;
 	Vector3_t coriolis;
 
-	if ((state != NULL) && (omega != NULL)) {
-		ned_vel.x = state->velocity.north_m_s;
-		ned_vel.y = state->velocity.east_m_s;
-		ned_vel.z = state->velocity.down_m_s;
+	if ((rates != NULL) && (velocity_n_mps != NULL)) {
+		ned_vel.x = velocity_n_mps->north_m_s;
+		ned_vel.y = velocity_n_mps->east_m_s;
+		ned_vel.z = velocity_n_mps->down_m_s;
 
-		total_rate_n_radps.x = ((2.0 * state->rates.earth_rate_ned_rad_s.x)
-				+ state->rates.transport_rate_ned_rad_s.x);
+		total_rate_n_radps.x = ((2.0 * rates->earth_rate_ned_rad_s.x)
+				+ rates->transport_rate_ned_rad_s.x);
 
-		total_rate_n_radps.y = ((2.0 * state->rates.earth_rate_ned_rad_s.y)
-				+ state->rates.transport_rate_ned_rad_s.y);
+		total_rate_n_radps.y = ((2.0 * rates->earth_rate_ned_rad_s.y)
+				+ rates->transport_rate_ned_rad_s.y);
 
-		total_rate_n_radps.z = ((2.0 * state->rates.earth_rate_ned_rad_s.z)
-				+ state->rates.transport_rate_ned_rad_s.z);
+		total_rate_n_radps.z = ((2.0 * rates->earth_rate_ned_rad_s.z)
+				+ rates->transport_rate_ned_rad_s.z);
 
 		Vector3_Cross(&total_rate_n_radps, &ned_vel, &coriolis);
 
-		omega->north_m_s = -coriolis.x;
-		omega->east_m_s = -coriolis.y;
-		omega->down_m_s = -coriolis.z;
+		acceleration_n_mps2->x = -coriolis.x;
+		acceleration_n_mps2->y = -coriolis.y;
+		acceleration_n_mps2->z = -coriolis.z;
 	}
 }
 
-static void Navigation_ComputeMidpointState(const Navigation_t *state,
-		const NedVelocity_t *velocity_mid_n_mps) {
+static void Navigation_ComputeMidpointState(Navigation_t *state,
+		NedVelocity_t *velocity_mid_n_mps) {
 
 	if ((state != NULL) && (velocity_mid_n_mps != NULL)) {
 
 		/* * 1. Midpoint altitude. */
-		Navigation_ComputeMidpointAltitude(state, velocity_mid_n_mps,
-		NAVIGATION_UPDATE_PERIOD_S);
+		Navigation_ComputeMidpointAltitude(state, velocity_mid_n_mps);
 
 		/* * 2. Midpoint latitude. */
-		Navigation_ComputeMidpointLatitude(state, velocity_mid_n_mps,
-				*altitude_mid_m, dt_sec, latitude_mid_rad);
+		Navigation_ComputeMidpointLatitude(state, velocity_mid_n_mps);
 
 		/* * 3. WGS-84 radii. */
-		WGS84_ComputeRadii(*latitude_mid_rad, meridian_radius_m,
-				prime_vertical_radius_m);
+		Wgs84_CalculateRadii(state->mid_position.latitude_rad,
+				&state->mid_radius);
 
 		/* * 4. Gravity at midpoint. */
-		WGS84_ComputeGravity(*latitude_mid_rad, *altitude_mid_m,
-				gravity_mid_n_mps2);
+		Wgs84_CalculateGravity(state->mid_position.latitude_rad,
+				state->mid_position.altitude_m, &state->mid_gravity);
 
 		/* * 5. Earth rotation at midpoint. */
-		Navigation_ComputeEarthRate(*latitude_mid_rad, earth_rate_mid_n_radps);
+		Navigation_ComputeEarthRate(state->mid_position.latitude_rad,
+				&state->mid_rates.earth_rate_ned_rad_s);
 
 		/* * 6. Transport rate at midpoint. */
-		Navigation_ComputeTransportRate(*latitude_mid_rad, *altitude_mid_m,
-				velocity_mid_n_mps, *meridian_radius_m,
-				*prime_vertical_radius_m, transport_rate_mid_n_radps);
+		Navigation_ComputeTransportRate(state->mid_position, velocity_mid_n_mps,
+				state->mid_radius, &state->mid_rates.transport_rate_ned_rad_s);
 
 	}
 }
@@ -821,13 +814,12 @@ static void Navigation_UpdateVelocity(Navigation_t *navigation) {
 	Vector3_t specific_force_ned;
 
 	Vector3_t ned_vel;
-	Vector3_t ned_gravity;
 
 	Vector3_t coriolis_rate;
 	Vector3_t coriolis;
 	Vector3_t vdot;
 
-	NedVelocity_t omega;
+	Vector3_t omega;
 
 	NedVelocity_t velocity_initial_n_mps;
 	NedVelocity_t velocity_predicted_n_mps;
@@ -838,12 +830,6 @@ static void Navigation_UpdateVelocity(Navigation_t *navigation) {
 	/* Latch initial velocity */
 	velocity_initial_n_mps = navigation->velocity;
 
-	ned_gravity.x = navigation->gravity.n_gravity;
-	ned_gravity.y = navigation->gravity.e_gravity;
-	ned_gravity.z = navigation->gravity.d_gravity;
-
-	Vector3_Scale(&ned_gravity, NAVIGATION_UPDATE_PERIOD_S, &ned_gravity);
-
 	if (navigation != NULL) {
 		/* Convert Body frame acceleration to NED frame using midpoint dcm*/
 		Matrix3_MultiplyVector(&navigation->dcm_body_to_ned,
@@ -851,25 +837,26 @@ static void Navigation_UpdateVelocity(Navigation_t *navigation) {
 				&specific_force_ned);
 
 		/* Predictor */
-		Navigation_ComputeEarthAcceleration(navigation, &omega);
+		Navigation_ComputeEarthAcceleration(&navigation->rates,
+				&navigation->velocity, &omega);
 
 		velocity_predicted_n_mps.north_m_s = velocity_initial_n_mps.north_m_s
 				+ specific_force_ned.x
-				+ (navigation->gravity.n_gravity + omega.north_m_s)
+				+ (navigation->gravity.n_gravity + omega.x)
 						* NAVIGATION_UPDATE_PERIOD_S;
 
 		velocity_predicted_n_mps.east_m_s = velocity_initial_n_mps.east_m_s
 				+ specific_force_ned.y
-				+ (navigation->gravity.e_gravity + omega.east_m_s)
+				+ (navigation->gravity.e_gravity + omega.y)
 						* NAVIGATION_UPDATE_PERIOD_S;
 
 		velocity_predicted_n_mps.down_m_s = velocity_initial_n_mps.down_m_s
 				+ specific_force_ned.z
-				+ (navigation->gravity.d_gravity + omega.down_m_s)
+				+ (navigation->gravity.d_gravity + omega.z)
 						* NAVIGATION_UPDATE_PERIOD_S;
 
 		/* predictor - corrector */
-		for (iteration = 0; iteration < 3; iteration++) {
+		for (iteration = 0; iteration < 2; iteration++) {
 			velocity_mid_n_mps.north_m_s = 0.5
 					* (velocity_initial_n_mps.north_m_s
 							+ velocity_predicted_n_mps.north_m_s);
@@ -881,52 +868,51 @@ static void Navigation_UpdateVelocity(Navigation_t *navigation) {
 			velocity_mid_n_mps.down_m_s = 0.5
 					* (velocity_initial_n_mps.down_m_s
 							+ velocity_predicted_n_mps.down_m_s);
+
+			Navigation_ComputeMidpointState(navigation, &velocity_mid_n_mps);
+
+			Navigation_ComputeEarthAcceleration(&navigation->rates,
+					&navigation->velocity, &omega);
+
+			velocity_predicted_n_mps.north_m_s =
+					velocity_initial_n_mps.north_m_s + specific_force_ned.x
+							+ (navigation->mid_gravity.n_gravity + omega.x)
+									* NAVIGATION_UPDATE_PERIOD_S;
+
+			velocity_predicted_n_mps.east_m_s = velocity_initial_n_mps.east_m_s
+					+ specific_force_ned.y
+					+ (navigation->mid_gravity.e_gravity + omega.y)
+							* NAVIGATION_UPDATE_PERIOD_S;
+
+			velocity_predicted_n_mps.down_m_s = velocity_initial_n_mps.down_m_s
+					+ specific_force_ned.z
+					+ (navigation->mid_gravity.d_gravity + omega.z)
+							* NAVIGATION_UPDATE_PERIOD_S;
+
 		}
 
-//		Dcm_TransposeMultiplyVector(&navigation->dcm_ned_to_body,
-//				&navigation->body_delta_velocity, &specific_force_ned);
-		/*
-		 * Coriolis + transport rate.
-		 *
-		 * omega = 2 * EarthRate + TransportRate
-		 *
-		 */
+		/* Recalculate final midpoint velocity. */
+		velocity_mid_n_mps.north_m_s = 0.5
+				* (velocity_initial_n_mps.north_m_s
+						+ velocity_predicted_n_mps.north_m_s);
 
-		coriolis_rate.x = ((2.0 * navigation->rates.earth_rate_ned_rad_s.x)
-				+ navigation->rates.transport_rate_ned_rad_s.x);
+		velocity_mid_n_mps.east_m_s = 0.5
+				* (velocity_initial_n_mps.east_m_s
+						+ velocity_predicted_n_mps.east_m_s);
 
-		coriolis_rate.y = ((2.0 * navigation->rates.earth_rate_ned_rad_s.y)
-				+ navigation->rates.transport_rate_ned_rad_s.y);
+		velocity_mid_n_mps.down_m_s = 0.5
+				* (velocity_initial_n_mps.down_m_s
+						+ velocity_predicted_n_mps.down_m_s);
 
-		coriolis_rate.z = ((2.0 * navigation->rates.earth_rate_ned_rad_s.z)
-				+ navigation->rates.transport_rate_ned_rad_s.z);
+		/* Commit Final Velocity */
+		navigation->velocity = velocity_predicted_n_mps;
 
-		Vector3_Cross(&coriolis_rate, &ned_vel, &coriolis);
-		Vector3_Scale(&coriolis, NAVIGATION_UPDATE_PERIOD_S, &coriolis);
+		/* Store midpoint navigation quantities. */
+		navigation->gravity = navigation->mid_gravity;
 
-		/*
-		 * NED velocity equation:
-		 *
-		 * Vdot = f_NED + g_NED - Omega x V
-		 *
-		 * where the above Coriolis terms represent
-		 * Omega x V.
-		 */
+		navigation->rates = navigation->mid_rates;
 
-		Vector3_Add(&specific_force_ned, &ned_gravity, &vdot);
-
-		Vector3_Subtract(&vdot, &coriolis, &vdot);
-
-		navigation->velocity.north_m_s += vdot.x;
-		navigation->velocity.east_m_s += vdot.y;
-		navigation->velocity.down_m_s += vdot.z;
-
-		navigation->mid_velocity.north_m_s = (navigation->velocity.north_m_s
-				+ vel0.x) * 0.5;
-		navigation->mid_velocity.east_m_s = (navigation->velocity.east_m_s
-				+ vel0.y) * 0.5;
-		navigation->mid_velocity.down_m_s = (navigation->velocity.down_m_s
-				+ vel0.z) * 0.5;
+		navigation->radius = navigation->mid_radius;
 
 	}
 }

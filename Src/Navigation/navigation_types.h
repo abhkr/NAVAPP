@@ -54,6 +54,9 @@ typedef struct {
 	 * Mid point values
 	 */
 	GeodeticPosition_t mid_position;
+	Wgs84Gravity_t mid_gravity;
+	Wgs84Radii_t mid_radius;
+	Wgs84AngularRates_t mid_rates;
 
 	/*
 	 * Earth model quantities.
