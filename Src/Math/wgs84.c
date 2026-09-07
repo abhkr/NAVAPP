@@ -297,8 +297,7 @@ static float64_t Wgs84_CalculateMeridianRadius(float64_t latitude_rad) {
 	denominator = sqrt(
 			1.0 - (WGS84_ECCENTRICITY_SQUARED * sin_latitude * sin_latitude));
 
-	if (denominator <
-	WGS84_MIN_DENOMINATOR) {
+	if (denominator < WGS84_MIN_DENOMINATOR) {
 		return WGS84_SEMI_MAJOR_AXIS_M;
 	}
 

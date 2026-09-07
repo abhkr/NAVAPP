@@ -54,6 +54,7 @@ typedef struct {
 	 * Mid point values
 	 */
 	GeodeticPosition_t mid_position;
+	NedVelocity_t mid_velocity;
 	Wgs84Gravity_t mid_gravity;
 	Wgs84Radii_t mid_radius;
 	Wgs84AngularRates_t mid_rates;
@@ -68,8 +69,6 @@ typedef struct {
 
 	Matrix3_t dcm_ned_to_body;
 	Matrix3_t dcm_body_to_ned;
-
-	NedVelocity_t mid_velocity;
 
 	ImuMeasurement_t imu_compensated;
 	ImuMeasurement_t imu_samples[NAVIGATION_IMU_SAMPLE_COUNT];
