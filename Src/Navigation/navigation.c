@@ -36,29 +36,12 @@
  * ========================================================================== */
 
 static void Navigation_ResetImuBuffer(Navigation_t *navigation);
-//
-//static void Navigation_AverageImuSamples(Navigation_t *navigation,
-//		ImuMeasurement_t *average);
-//
-//static void Navigation_PreprocessImu(Navigation_t *navigation,
-//		const ImuMeasurement_t *imu);
-//
-static void Navigation_UpdateGravity(Navigation_t *navigation);
-
-static void Navigation_ComputeEarthRate(float64_t latitude_rad,
-		Vector3_t *earth_rate_n_radps);
-
-static void Navigation_ComputeTransportRate(GeodeticPosition_t position_m,
-		const NedVelocity_t *velocity_n_mps, Wgs84Radii_t radius_m,
-		Vector3_t *transport_rate_n_radps);
 
 static void Navigation_UpdateAttitude(Navigation_t *navigation);
 
 static void Navigation_UpdateVelocity(Navigation_t *navigation);
 
 static void Navigation_UpdatePosition(Navigation_t *navigation);
-
-static void Navigation_UpdateRadii(Navigation_t *navigation);
 
 /* ==========================================================================
  * Initialization
@@ -103,70 +86,29 @@ void Navigation_Init_From_Mdl(const NavigationMdl_t *mdl_data,
 				&navigation->radius);
 
 		/* Initialize earth rotation */
-		Wgs84_CalculateAngularRates(navigation->position.latitude_rad,
-				navigation->position.altitude_m, &navigation->velocity,
-				&navigation->rates);
-
+//		Wgs84_CalculateAngularRates(navigation->position.latitude_rad,
+//				navigation->position.altitude_m, &navigation->velocity,
+//				&navigation->rates);
 	}
 }
 
-///* ==========================================================================
-// * IMU processing
-// * ========================================================================== */
-//
-//void Navigation_ImuUpdate(Navigation_t *navigation, const ImuMeasurement_t *imu) {
-//	if ((navigation != NULL) && (imu != NULL)
-//			&& (navigation->initialized == true)) {
-//		if (navigation->imu_sample_count <
-//		NAVIGATION_IMU_SAMPLE_COUNT) {
-//			navigation->imu_samples[navigation->imu_sample_count] = *imu;
-//
-//			navigation->imu_sample_count++;
-//		}
-//
-//		/*
-//		 * Four samples correspond to 10 ms.
-//		 */
-//		if (navigation->imu_sample_count >=
-//		NAVIGATION_IMU_SAMPLE_COUNT) {
-//			ImuMeasurement_t average_imu;
-//
-//			Navigation_AverageImuSamples(navigation, &average_imu);
-//
-//			Navigation_PreprocessImu(navigation, &average_imu);
-//
-//			Navigation_Update(navigation);
-//
-//			Navigation_ResetImuBuffer(navigation);
-//		}
-//	}
-//}
-//
 /* ==========================================================================
  * Complete INS mechanization
  * ========================================================================== */
 
 void Navigation_Update(Navigation_t *navigation) {
 	if (navigation != NULL) {
-		/*
-		 * Update Earth model first because gravity,
-		 * Earth rate and transport rate depend on position
-		 * and velocity.
-		 */
-//		Navigation_UpdateRadii(navigation);
-//
-//		Navigation_UpdateGravity(navigation);
-//
-//		Navigation_UpdateEarthRate(navigation);
-//
-//		Navigation_UpdateTransportRate(navigation);
-		/*
-		 * INS mechanization.
-		 *
-		 * The attitude is updated first because the updated
-		 * attitude is required to transform specific force
-		 * from body frame to navigation frame.
-		 */
+
+		Wgs84_CalculateEarthRate(navigation->position.latitude_rad,
+				&navigation->rates.earth_rate_ned_rad_s);
+
+		Wgs84_CalculateTransportRate(navigation->position.latitude_rad,
+				navigation->position.altitude_m, &navigation->velocity,
+				&navigation->rates.transport_rate_ned_rad_s);
+
+		Wgs84_CalculateGravity(navigation->position.latitude_rad,
+				navigation->position.altitude_m, &navigation->gravity);
+
 		Navigation_UpdateAttitude(navigation);
 
 		Navigation_UpdateVelocity(navigation);
@@ -476,116 +418,6 @@ void Navigation_Apply_Coning_Sculling(Navigation_t *navigation) {
 //		NAVIGATION_UPDATE_PERIOD_S;
 //	}
 //}
-/* ==========================================================================
- * Earth model
- * ========================================================================== */
-
-static void Navigation_UpdateRadii(Navigation_t *navigation) {
-	double sin_lat;
-	double denominator;
-
-	double latitude;
-
-	if (navigation != NULL) {
-		latitude = navigation->position.latitude_rad;
-
-		sin_lat = sin(latitude);
-
-		denominator = sqrt(
-				1.0 - (WGS84_FIRST_ECCENTRICITY_SQ * sin_lat * sin_lat));
-
-		navigation->radius.prime_vertical_radius_m = WGS84_SEMI_MAJOR_AXIS_M
-				/ denominator;
-
-		navigation->radius.meridian_radius_m = (WGS84_SEMI_MAJOR_AXIS_M
-				* (1.0 - WGS84_FIRST_ECCENTRICITY_SQ))
-				/ (denominator * denominator * denominator);
-	}
-}
-
-/* ==========================================================================
- * Gravity
- * ========================================================================== */
-
-static void Navigation_UpdateGravity(Navigation_t *navigation) {
-	double latitude;
-	double altitude;
-
-	double sin_lat;
-	double sin_lat_sq;
-	float64_t radius_ratio;
-	float64_t altitude_factor;
-
-	double surface_gravity;
-
-	if (navigation != NULL) {
-		latitude = navigation->position.latitude_rad;
-
-		altitude = navigation->position.altitude_m;
-
-		sin_lat = sin(latitude);
-
-		sin_lat_sq = sin_lat * sin_lat;
-
-		/*
-		 * Normal gravity approximation.
-		 */
-		surface_gravity = WGS84_EQUATOR_GRAVITY_MPS2
-				* (1.0 + (WGS84_GRAVITY_K * sin_lat_sq))
-				/ sqrt(1.0 - (WGS84_FIRST_ECCENTRICITY_SQ * sin_lat_sq));
-
-		/*
-		 * Simple altitude correction.
-		 */
-		radius_ratio = altitude / WGS84_SEMI_MAJOR_AXIS_M;
-
-		altitude_factor = 1.0 - (2.0 * radius_ratio)
-				+ (3.0 * radius_ratio * radius_ratio);
-
-		navigation->gravity.gravity_m_s2 = surface_gravity * altitude_factor;
-		navigation->gravity.n_gravity = 0.0;
-		navigation->gravity.e_gravity = 0.0;
-		navigation->gravity.d_gravity = navigation->gravity.gravity_m_s2;
-	}
-}
-
-/* ==========================================================================
- * Earth rotation rate
- * ========================================================================== */
-
-static void Navigation_ComputeEarthRate(float64_t latitude_rad,
-		Vector3_t *earth_rate_n_radps) {
-
-	if (earth_rate_n_radps != NULL) {
-		earth_rate_n_radps->x = WGS84_EARTH_ROTATION_RAD_S * cos(latitude_rad);
-		earth_rate_n_radps->y = 0.0;
-		earth_rate_n_radps->z = -WGS84_EARTH_ROTATION_RAD_S * sin(latitude_rad);
-	}
-}
-
-/* ==========================================================================
- * Transport rate
- * ========================================================================== */
-
-static void Navigation_ComputeTransportRate(GeodeticPosition_t position_m,
-		const NedVelocity_t *velocity_n_mps, Wgs84Radii_t radius_m,
-		Vector3_t *transport_rate_n_radps) {
-
-	if ((velocity_n_mps != NULL) && (transport_rate_n_radps != NULL)) {
-
-		transport_rate_n_radps->x = velocity_n_mps->east_m_s
-				/ (radius_m.prime_vertical_radius_m + position_m.altitude_m);
-
-		transport_rate_n_radps->y = -velocity_n_mps->north_m_s
-				/ (radius_m.meridian_radius_m + position_m.altitude_m);
-
-		transport_rate_n_radps->z = -(velocity_n_mps->east_m_s
-				* tan(position_m.latitude_rad))
-				/ (radius_m.prime_vertical_radius_m + position_m.altitude_m);
-
-	}
-}
-
 static void Navigation_ComputeMidpointAltitude(Navigation_t *state) {
 
 	state->mid_position.altitude_m = state->position.altitude_m
@@ -594,7 +426,7 @@ static void Navigation_ComputeMidpointAltitude(Navigation_t *state) {
 
 static void Navigation_ComputeMidpointLatitude(Navigation_t *state) {
 
-	double latitude_rad;
+	float64_t latitude_rad;
 	Wgs84Radii_t mid_radii;
 	uint32_t iteration;
 
@@ -691,12 +523,12 @@ static void Navigation_ComputeMidpointState(Navigation_t *state) {
 				state->mid_position.altitude_m, &state->mid_gravity);
 
 		/* * 5. Earth rotation at midpoint. */
-		Navigation_ComputeEarthRate(state->mid_position.latitude_rad,
+		Wgs84_CalculateEarthRate(state->mid_position.latitude_rad,
 				&state->mid_rates.earth_rate_ned_rad_s);
 
 		/* * 6. Transport rate at midpoint. */
-		Navigation_ComputeTransportRate(state->mid_position,
-				&state->mid_velocity, state->mid_radius,
+		Wgs84_CalculateTransportRate(state->mid_position.latitude_rad,
+				state->mid_position.altitude_m, &state->mid_velocity,
 				&state->mid_rates.transport_rate_ned_rad_s);
 
 	}
@@ -861,8 +693,8 @@ static void Navigation_UpdateVelocity(Navigation_t *navigation) {
 
 			Navigation_ComputeMidpointState(navigation);
 
-			Navigation_ComputeEarthAcceleration(&navigation->rates,
-					&navigation->velocity, &omega);
+			Navigation_ComputeEarthAcceleration(&navigation->mid_rates,
+					&navigation->mid_velocity, &omega);
 
 			velocity_predicted_n_mps.north_m_s =
 					velocity_initial_n_mps.north_m_s + specific_force_ned.x
@@ -897,13 +729,6 @@ static void Navigation_UpdateVelocity(Navigation_t *navigation) {
 		/* Commit Final Velocity */
 		navigation->velocity = velocity_predicted_n_mps;
 
-		/* Store midpoint navigation quantities. */
-		navigation->gravity = navigation->mid_gravity;
-
-		navigation->rates = navigation->mid_rates;
-
-		navigation->radius = navigation->mid_radius;
-
 	}
 }
 
@@ -922,15 +747,7 @@ static void Navigation_UpdatePosition(Navigation_t *navigation) {
 
 	if (navigation != NULL) {
 
-		Navigation_ComputeMidpointAltitude(navigation);
-
-		Navigation_ComputeMidpointLatitude(navigation);
-
-		/*
-		 * Calculate WGS-84 radii at the midpoint latitude.
-		 */
-		Wgs84_CalculateRadii(navigation->mid_position.latitude_rad,
-				&radius_mid);
+		radius_mid = navigation->mid_radius;
 
 		latitude_dot = navigation->mid_velocity.north_m_s
 				/ (radius_mid.meridian_radius_m

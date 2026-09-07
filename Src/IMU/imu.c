@@ -83,7 +83,7 @@ SensorStatus_t Imu_AcquireStatic(ImuMeasurement_t *measurement,
 	Matrix3_MultiplyVector(dcm_ned2body, &gyro_rad_delt,
 			&measurement->gyro_rad_delt);
 
-	measurement->gyro_rad_delt.z += ((10.0 * MATH_DEG_TO_RAD) * del_t);
+	//measurement->gyro_rad_delt.z += ((10.0 * MATH_DEG_TO_RAD) * del_t);
 
 	Matrix3_MultiplyVector(dcm_ned2body, &acc_m_s_delt,
 			&measurement->accel_m_s_delt);

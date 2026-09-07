@@ -85,45 +85,27 @@ MathStatus_t WGS84_LlaToEcef(const GeodeticPosition_t *lla, Vector3_t *ecef_m) {
 	return status;
 }
 
-bool Wgs84_CalculateRadii(const float64_t latitude_rad, Wgs84Radii_t *radii) {
-	bool status;
-
-	status = false;
+void Wgs84_CalculateRadii(const float64_t latitude_rad, Wgs84Radii_t *radii) {
 
 	if ((radii != NULL) && Wgs84_IsValidLatitude(latitude_rad)) {
 		radii->prime_vertical_radius_m = Wgs84_CalculatePrimeVerticalRadius(
 				latitude_rad);
 
 		radii->meridian_radius_m = Wgs84_CalculateMeridianRadius(latitude_rad);
-
-		status = true;
 	}
-
-	return status;
 }
 
-bool Wgs84_CalculateGravity(float64_t latitude_rad, float64_t altitude_m,
+void Wgs84_CalculateGravity(float64_t latitude_rad, float64_t altitude_m,
 		Wgs84Gravity_t *gravity) {
 	float64_t surface_gravity;
 	float64_t altitude_factor;
 	float64_t radius_ratio;
-
-	bool status;
-
-	status = false;
 
 	if ((gravity != NULL) && Wgs84_IsValidLatitude(latitude_rad)
 			&& (altitude_m >= -WGS84_GRAVITY_ALTITUDE_LIMIT_M) && (altitude_m <=
 			WGS84_GRAVITY_ALTITUDE_LIMIT_M)) {
 		surface_gravity = Wgs84_CalculateNormalGravity(latitude_rad);
 
-		/*
-		 * First-order altitude correction.
-		 *
-		 * This is appropriate for the INS operating
-		 * altitude range. A higher-order gravity model
-		 * can be added later if required.
-		 */
 		radius_ratio = altitude_m / WGS84_EQUATORIAL_RADIUS_M;
 
 		altitude_factor = 1.0 - (2.0 * radius_ratio)
@@ -134,15 +116,24 @@ bool Wgs84_CalculateGravity(float64_t latitude_rad, float64_t altitude_m,
 		gravity->n_gravity = 0.0;
 		gravity->e_gravity = 0.0;
 		gravity->d_gravity = gravity->gravity_m_s2;
-
-		status = true;
 	}
-
-	return status;
 }
 
-bool Wgs84_CalculateAngularRates(float64_t latitude_rad, float64_t altitude_m,
-		const NedVelocity_t *velocity_ned_m_s, Wgs84AngularRates_t *rates) {
+void Wgs84_CalculateEarthRate(const float64_t latitude_rad,
+		Vector3_t *earth_rate_n_radps) {
+
+	if (earth_rate_n_radps != NULL) {
+		earth_rate_n_radps->x = WGS84_EARTH_ROTATION_RAD_S * cos(latitude_rad);
+		earth_rate_n_radps->y = 0.0;
+		earth_rate_n_radps->z = -WGS84_EARTH_ROTATION_RAD_S * sin(latitude_rad);
+	}
+
+}
+
+void Wgs84_CalculateTransportRate(float64_t latitude_rad, float64_t altitude_m,
+		const NedVelocity_t *velocity_ned_m_s,
+		Vector3_t *transport_rate_n_radps) {
+
 	Wgs84Radii_t radii;
 
 	float64_t sin_latitude;
@@ -151,19 +142,15 @@ bool Wgs84_CalculateAngularRates(float64_t latitude_rad, float64_t altitude_m,
 	float64_t velocity_north;
 	float64_t velocity_east;
 
-	float64_t earth_rate;
-
 	float64_t transport_north;
 	float64_t transport_east;
 	float64_t transport_down;
 
-	bool status;
+	if ((velocity_ned_m_s != NULL) && (transport_rate_n_radps != NULL)
+			&& Wgs84_IsValidLatitude(latitude_rad)) {
 
-	status = false;
+		Wgs84_CalculateRadii(latitude_rad, &radii);
 
-	if ((velocity_ned_m_s != NULL) && (rates != NULL)
-			&& Wgs84_IsValidLatitude(latitude_rad) &&
-			Wgs84_CalculateRadii(latitude_rad,&radii) == true) {
 		sin_latitude = sin(latitude_rad);
 
 		cos_latitude = cos(latitude_rad);
@@ -172,42 +159,13 @@ bool Wgs84_CalculateAngularRates(float64_t latitude_rad, float64_t altitude_m,
 
 		velocity_east = velocity_ned_m_s->east_m_s;
 
-		earth_rate = WGS84_EARTH_ROTATION_RAD_S;
-
-		/*
-		 * Earth rotation rate expressed in NED.
-		 *
-		 * omega_ie^n =
-		 * [
-		 *   omega_ie cos(L)
-		 *   0
-		 *  -omega_ie sin(L)
-		 * ]
-		 */
-		rates->earth_rate_ned_rad_s.x = earth_rate * cos_latitude;
-
-		rates->earth_rate_ned_rad_s.y = 0.0;
-
-		rates->earth_rate_ned_rad_s.z = -earth_rate * sin_latitude;
-
-		/*
-		 * Transport rate:
-		 *
-		 * omega_en^n =
-		 * [
-		 *   Ve / (RN + h)
-		 *  -Vn / (RM + h)
-		 *  -Ve tan(L) / (RN + h)
-		 * ]
-		 */
 		transport_north = velocity_east
 				/ (radii.prime_vertical_radius_m + altitude_m);
 
 		transport_east = -velocity_north
 				/ (radii.meridian_radius_m + altitude_m);
 
-		if (fabs(cos_latitude) >
-		WGS84_MIN_COS_LATITUDE) {
+		if (fabs(cos_latitude) > WGS84_MIN_COS_LATITUDE) {
 			transport_down = -velocity_east * sin_latitude
 					/ ((radii.prime_vertical_radius_m + altitude_m)
 							* cos_latitude);
@@ -215,18 +173,12 @@ bool Wgs84_CalculateAngularRates(float64_t latitude_rad, float64_t altitude_m,
 			transport_down = 0.0;
 		}
 
-		rates->transport_rate_ned_rad_s.x = transport_north;
+		transport_rate_n_radps->x = transport_north;
 
-		rates->transport_rate_ned_rad_s.y = transport_east;
+		transport_rate_n_radps->y = transport_east;
 
-		rates->transport_rate_ned_rad_s.z = transport_down;
-
-		(void) Wgs84_IsValidLatitude(latitude_rad);
-
-		status = true;
+		transport_rate_n_radps->z = transport_down;
 	}
-
-	return status;
 }
 
 bool Wgs84_CalculatePositionRate(float64_t latitude_rad, float64_t altitude_m,
@@ -241,10 +193,10 @@ bool Wgs84_CalculatePositionRate(float64_t latitude_rad, float64_t altitude_m,
 	status = false;
 
 	if ((velocity_ned_m_s != NULL) && (position_rate != NULL)
-			&& Wgs84_IsValidLatitude(latitude_rad) &&
-			Wgs84_CalculateRadii(
-					latitude_rad,
-					&radii) == true) {
+			&& Wgs84_IsValidLatitude(latitude_rad)) {
+
+		Wgs84_CalculateRadii(latitude_rad, &radii);
+
 		cos_latitude = cos(latitude_rad);
 
 		position_rate->latitude_rate_rad_s = velocity_ned_m_s->x

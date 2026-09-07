@@ -73,7 +73,7 @@ MathStatus_t WGS84_LlaToEcef(const GeodeticPosition_t *lla, Vector3_t *ecef_m);
  *
  * @return true if calculation is valid.
  */
-bool Wgs84_CalculateRadii(const float64_t latitude_rad, Wgs84Radii_t *radii);
+void Wgs84_CalculateRadii(const float64_t latitude_rad, Wgs84Radii_t *radii);
 
 /**
  * @brief Calculate normal gravity.
@@ -85,7 +85,7 @@ bool Wgs84_CalculateRadii(const float64_t latitude_rad, Wgs84Radii_t *radii);
  *
  * @return true if calculation is valid.
  */
-bool Wgs84_CalculateGravity(float64_t latitude_rad, float64_t altitude_m,
+void Wgs84_CalculateGravity(float64_t latitude_rad, float64_t altitude_m,
 		Wgs84Gravity_t *gravity);
 
 /**
@@ -99,8 +99,13 @@ bool Wgs84_CalculateGravity(float64_t latitude_rad, float64_t altitude_m,
  *
  * @return true if calculation is valid.
  */
-bool Wgs84_CalculateAngularRates(float64_t latitude_rad, float64_t altitude_m,
-		const NedVelocity_t *velocity_ned_m_s, Wgs84AngularRates_t *rates);
+
+void Wgs84_CalculateEarthRate(const float64_t latitude_rad,
+		Vector3_t *earth_rate_n_radps);
+
+void Wgs84_CalculateTransportRate(float64_t latitude_rad, float64_t altitude_m,
+		const NedVelocity_t *velocity_ned_m_s,
+		Vector3_t *transport_rate_n_radps);
 
 /**
  * @brief Calculate geodetic position rate.
