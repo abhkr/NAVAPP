@@ -81,6 +81,8 @@ void Navigation_Init_From_Mdl(const NavigationMdl_t *mdl_data,
 		Matrix3_Transpose(&navigation->dcm_ned_to_body,
 				&navigation->dcm_body_to_ned);
 
+		navigation->initial_dcm_ned_to_body = navigation->dcm_ned_to_body;
+
 		/* Initialize Earth Radii */
 		Wgs84_CalculateRadii(navigation->position.latitude_rad,
 				&navigation->radius);
@@ -629,6 +631,9 @@ static void Navigation_UpdateAttitude(Navigation_t *navigation) {
 
 		/* Update DCM */
 		Transform_QuaternionToDcm(&quat_mid, &navigation->dcm_ned_to_body);
+
+		Matrix3_Transpose(&navigation->dcm_ned_to_body,
+				&navigation->dcm_body_to_ned);
 
 		Transform_QuaternionToEuler(&navigation->quaternion,
 				&navigation->attitude);

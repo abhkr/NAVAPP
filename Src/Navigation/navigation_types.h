@@ -70,6 +70,9 @@ typedef struct {
 	Matrix3_t dcm_ned_to_body;
 	Matrix3_t dcm_body_to_ned;
 
+	Matrix3_t initial_dcm_ned_to_body;
+	Matrix3_t initial_dcm_body_to_ned;
+
 	ImuMeasurement_t imu_compensated;
 	ImuMeasurement_t imu_samples[NAVIGATION_IMU_SAMPLE_COUNT];
 

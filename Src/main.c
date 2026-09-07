@@ -59,7 +59,7 @@ static void Main_IMU_Isr(void) {
 	nav_state.rcnt++;
 	Imu_AcquireStatic(&imu, nav_state.position.latitude_rad,
 	NAVIGATION_IMU_SAMPLE_PERIOD_S, nav_state.gravity.gravity_m_s2,
-			&nav_state.dcm_ned_to_body);
+			&nav_state.initial_dcm_ned_to_body);
 
 	nav_state.imu_samples[nav_state.imu_sample_count] = imu;
 	nav_state.imu_sample_count++;
