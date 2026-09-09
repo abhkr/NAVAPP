@@ -1,0 +1,404 @@
+/*
+ * velmatch_ekf.c
+ *
+ *  Created on: 09-Sept-2026
+ *      Author: abhimanyu
+ */
+
+#include <math.h>
+#include <stddef.h>
+
+typedef double Matrix3[3][3];
+
+#define WGS84_A   6378137.0
+#define WGS84_E2  6.6943799901413165e-3
+
+void ins_build_Fpp(double lat_rad, double height_m, double vN_mps,
+		double vE_mps, Matrix3 Fpp) {
+	const double s = sin(lat_rad);
+	const double c = cos(lat_rad);
+
+	/*
+	 * q = 1 - e^2 sin^2(phi)
+	 */
+	const double q = 1.0 - WGS84_E2 * s * s;
+	const double sqrt_q = sqrt(q);
+
+	/*
+	 * WGS-84 radii of curvature
+	 *
+	 * RN: prime vertical radius
+	 * RM: meridian radius
+	 */
+	const double RN =
+	WGS84_A / sqrt_q;
+
+	const double RM =
+	WGS84_A * (1.0 - WGS84_E2) / (q * sqrt_q);
+
+	/*
+	 * Latitude derivatives of curvature radii.
+	 *
+	 * dRN/dphi =
+	 * a e^2 sin(phi) cos(phi)
+	 * --------------------------------
+	 * (1 - e^2 sin^2(phi))^(3/2)
+	 */
+	const double dRN_dphi =
+	WGS84_A * WGS84_E2 * s * c / (q * sqrt_q);
+
+	/*
+	 * dRM/dphi =
+	 * 3 a (1-e^2) e^2 sin(phi) cos(phi)
+	 * -----------------------------------
+	 * (1 - e^2 sin^2(phi))^(5/2)
+	 */
+	const double dRM_dphi = 3.0 * WGS84_A * (1.0 - WGS84_E2) * WGS84_E2 * s * c
+			/ (q * q * sqrt_q);
+
+	/*
+	 * Effective radii including altitude
+	 */
+	const double rN = RN + height_m;
+	const double rM = RM + height_m;
+
+	/*
+	 * Zero matrix
+	 */
+	for (size_t i = 0; i < 3; ++i) {
+		for (size_t j = 0; j < 3; ++j) {
+			Fpp[i][j] = 0.0;
+		}
+	}
+
+	/*
+	 * ----------------------------------------------------
+	 * Latitude equation:
+	 *
+	 * phi_dot = vN / (RM + h)
+	 *
+	 * d(phi_dot)/d(phi)
+	 */
+	Fpp[0][0] = -vN_mps * dRM_dphi / (rM * rM);
+
+	/*
+	 * d(phi_dot)/d(h)
+	 */
+	Fpp[0][2] = -vN_mps / (rM * rM);
+
+	/*
+	 * ----------------------------------------------------
+	 * Longitude equation:
+	 *
+	 * lambda_dot = vE / ((RN + h) cos(phi))
+	 *
+	 * d(lambda_dot)/d(phi)
+	 */
+	Fpp[1][0] = (vE_mps / (rN * c)) * (tan(lat_rad) - dRN_dphi / rN);
+
+	/*
+	 * d(lambda_dot)/d(h)
+	 */
+	Fpp[1][2] = -vE_mps / (rN * rN * c);
+
+	/*
+	 * ----------------------------------------------------
+	 * Height equation:
+	 *
+	 * h_dot = -vD
+	 *
+	 * No direct position-position coupling.
+	 *
+	 * Therefore row 2 remains zero.
+	 * ----------------------------------------------------
+	 */
+}
+
+void ins_build_Fpv(double lat_rad, double height_m, Matrix3 Fpv) {
+	const double s = sin(lat_rad);
+	const double c = cos(lat_rad);
+
+	/*
+	 * q = 1 - e^2 sin^2(phi)
+	 */
+	const double q = 1.0 - WGS84_E2 * s * s;
+
+	const double sqrt_q = sqrt(q);
+
+	/*
+	 * WGS-84 prime-vertical radius
+	 *
+	 * RN = a / sqrt(1 - e^2 sin^2(phi))
+	 */
+	const double RN =
+	WGS84_A / sqrt_q;
+
+	/*
+	 * WGS-84 meridian radius
+	 *
+	 * RM = a(1-e^2)
+	 *      -------------------------
+	 *      (1-e^2 sin^2(phi))^(3/2)
+	 */
+	const double RM =
+	WGS84_A * (1.0 - WGS84_E2) / (q * sqrt_q);
+
+	/*
+	 * Include altitude.
+	 */
+	const double rN = RN + height_m;
+	const double rM = RM + height_m;
+
+	/*
+	 * Initialize to zero.
+	 */
+	for (size_t i = 0; i < 3; ++i) {
+		for (size_t j = 0; j < 3; ++j) {
+			Fpv[i][j] = 0.0;
+		}
+	}
+
+	/*
+	 * delta(phi_dot) / delta(vN)
+	 */
+	Fpv[0][0] = 1.0 / rM;
+
+	/*
+	 * delta(lambda_dot) / delta(vE)
+	 */
+	Fpv[1][1] = 1.0 / (rN * c);
+
+	/*
+	 * h_dot = -vD
+	 */
+	Fpv[2][2] = -1.0;
+}
+
+#define EARTH_RATE 7.292115146706979e-5
+
+void build_Fvp_earth(double lat, double vN, double vE, double vD, Matrix3 F) {
+	const double s = sin(lat);
+	const double c = cos(lat);
+
+	F[0][0] = -2.0 * EARTH_RATE * vE * c;
+	F[0][1] = 0.0;
+	F[0][2] = 0.0;
+
+	F[1][0] = 2.0 * EARTH_RATE * (vN * c - vD * s);
+
+	F[1][1] = 0.0;
+	F[1][2] = 0.0;
+
+	F[2][0] = 2.0 * EARTH_RATE * vE * s;
+
+	F[2][1] = 0.0;
+	F[2][2] = 0.0;
+}
+
+void build_Fvp_transport(double lat, double h, double vN, double vE, double vD,
+		Matrix3 F) {
+	const double s = sin(lat);
+	const double c = cos(lat);
+
+	const double tanLat = s / c;
+	const double sec2Lat = 1.0 / (c * c);
+
+	const double q = 1.0 - WGS84_E2 * s * s;
+
+	const double sqrtQ = sqrt(q);
+
+	const double RN =
+	WGS84_A / sqrtQ;
+
+	const double RM =
+	WGS84_A * (1.0 - WGS84_E2) / (q * sqrtQ);
+
+	const double dRN =
+	WGS84_A * WGS84_E2 * s * c / (q * sqrtQ);
+
+	const double dRM = 3.0 * WGS84_A * (1.0 - WGS84_E2) * WGS84_E2 * s * c
+			/ (q * q * sqrtQ);
+
+	const double rN = RN + h;
+	const double rM = RM + h;
+
+	/*
+	 * Latitude column of Tp
+	 */
+	const double t1 = -vE * dRN / (rN * rN);
+
+	const double t2 = vN * dRM / (rM * rM);
+
+	const double t3 = -vE * (sec2Lat / rN - tanLat * dRN / (rN * rN));
+
+	/*
+	 * Height column of Tp
+	 */
+	const double u1 = -vE / (rN * rN);
+
+	const double u2 = vN / (rM * rM);
+
+	const double u3 = vE * tanLat / (rN * rN);
+
+	/*
+	 * Latitude column:
+	 *
+	 * [v x] * [t1 t2 t3]^T
+	 */
+	F[0][0] = -vD * t2 + vE * t3;
+	F[1][0] = vD * t1 - vN * t3;
+	F[2][0] = -vE * t1 + vN * t2;
+
+	/*
+	 * Longitude column = zero
+	 */
+	F[0][1] = 0.0;
+	F[1][1] = 0.0;
+	F[2][1] = 0.0;
+
+	/*
+	 * Height column:
+	 *
+	 * [v x] * [u1 u2 u3]^T
+	 */
+	F[0][2] = -vD * u2 + vE * u3;
+	F[1][2] = vD * u1 - vN * u3;
+	F[2][2] = -vE * u1 + vN * u2;
+}
+
+void build_Fvp_gravity(double dg_dlat, double dg_dh, Matrix3 F) {
+	F[0][0] = 0.0;
+	F[0][1] = 0.0;
+	F[0][2] = 0.0;
+
+	F[1][0] = 0.0;
+	F[1][1] = 0.0;
+	F[1][2] = 0.0;
+
+	F[2][0] = dg_dlat;
+	F[2][1] = 0.0;
+	F[2][2] = dg_dh;
+}
+
+void build_Fvp(double lat, double h, double vN, double vE, double vD,
+		double dg_dlat, double dg_dh, Matrix3 Fvp) {
+	Matrix3 Fe;
+	Matrix3 Ft;
+	Matrix3 Fg;
+
+	build_Fvp_earth(lat, vN, vE, vD, Fe);
+
+	build_Fvp_transport(lat, h, vN, vE, vD, Ft);
+
+	build_Fvp_gravity(dg_dlat, dg_dh, Fg);
+
+	for (int i = 0; i < 3; ++i) {
+		for (int j = 0; j < 3; ++j) {
+			Fvp[i][j] = Fe[i][j] + Ft[i][j] + Fg[i][j];
+		}
+	}
+}
+
+#include <math.h>
+
+typedef double Matrix3[3][3];
+
+#define WGS84_A      6378137.0
+#define WGS84_E2     6.6943799901413165e-3
+#define EARTH_RATE   7.292115146706979e-5
+
+int ins_build_Fvv(double lat_rad, double height_m, double vN, double vE,
+		double vD, Matrix3 Fvv) {
+	const double s = sin(lat_rad);
+	const double c = cos(lat_rad);
+
+	if (fabs(c) < 1.0e-8)
+		return -1;
+
+	const double tan_lat = s / c;
+
+	/*
+	 * WGS-84 curvature radii.
+	 */
+	const double q = 1.0 - WGS84_E2 * s * s;
+
+	const double sqrt_q = sqrt(q);
+
+	const double RN =
+	WGS84_A / sqrt_q;
+
+	const double RM =
+	WGS84_A * (1.0 - WGS84_E2) / (q * sqrt_q);
+
+	const double rN = RN + height_m;
+	const double rM = RM + height_m;
+
+	/*
+	 * Omega = 2*omega_ie + omega_en
+	 */
+	const double OmegaN = 2.0 * EARTH_RATE * c + vE / rN;
+
+	const double OmegaE = -vN / rM;
+
+	const double OmegaD = -2.0 * EARTH_RATE * s - vE * tan_lat / rN;
+
+	/*
+	 * Fvv =
+	 * -[Omega x] + [v x] Tv
+	 *
+	 * Explicit form.
+	 */
+
+	Fvv[0][0] = vD / rM;
+
+	Fvv[0][1] = OmegaD - vE * tan_lat / rN;
+
+	Fvv[0][2] = -OmegaE;
+
+	Fvv[1][0] = -OmegaD;
+
+	Fvv[1][1] = vD / rN + vN * tan_lat / rN;
+
+	Fvv[1][2] = OmegaN;
+
+	Fvv[2][0] = OmegaE - vN / rM;
+
+	Fvv[2][1] = -OmegaN - vE / rN;
+
+	Fvv[2][2] = 0.0;
+
+	return 0;
+}
+
+#include <stddef.h>
+
+typedef double Matrix3[3][3];
+
+void ins_build_Fvtheta(const double fn[3], Matrix3 Fvtheta) {
+	const double fN = fn[0];
+	const double fE = fn[1];
+	const double fD = fn[2];
+
+	Fvtheta[0][0] = 0.0;
+	Fvtheta[0][1] = -fD;
+	Fvtheta[0][2] = fE;
+
+	Fvtheta[1][0] = fD;
+	Fvtheta[1][1] = 0.0;
+	Fvtheta[1][2] = -fN;
+
+	Fvtheta[2][0] = -fE;
+	Fvtheta[2][1] = fN;
+	Fvtheta[2][2] = 0.0;
+}
+
+typedef double Matrix3[3][3];
+
+void ins_build_Fvba(const Matrix3 Cbn, Matrix3 Fvba) {
+	for (int i = 0; i < 3; ++i) {
+		for (int j = 0; j < 3; ++j) {
+			Fvba[i][j] = Cbn[i][j];
+		}
+	}
+}
+
