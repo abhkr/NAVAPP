@@ -402,3 +402,160 @@ void ins_build_Fvba(const Matrix3 Cbn, Matrix3 Fvba) {
 	}
 }
 
+int ins_build_Ftheta_p(double lat_rad, double height_m, double vN, double vE,
+		Matrix3 Ftheta_p) {
+	const double s = sin(lat_rad);
+	const double c = cos(lat_rad);
+
+	if (fabs(c) < 1.0e-8)
+		return -1;
+
+	const double tan_lat = s / c;
+	const double sec2_lat = 1.0 / (c * c);
+
+	/*
+	 * WGS-84 curvature quantities
+	 */
+	const double q = 1.0 - WGS84_E2 * s * s;
+
+	const double sqrt_q = sqrt(q);
+
+	const double RN =
+	WGS84_A / sqrt_q;
+
+	const double RM =
+	WGS84_A * (1.0 - WGS84_E2) / (q * sqrt_q);
+
+	/*
+	 * dRN / dphi
+	 */
+	const double dRN =
+	WGS84_A * WGS84_E2 * s * c / (q * sqrt_q);
+
+	/*
+	 * dRM / dphi
+	 */
+	const double dRM = 3.0 * WGS84_A * (1.0 - WGS84_E2) * WGS84_E2 * s * c
+			/ (q * q * sqrt_q);
+
+	const double rN = RN + height_m;
+	const double rM = RM + height_m;
+
+	/*
+	 * Ftheta_p = Ap + Tp
+	 */
+
+	Ftheta_p[0][0] = -EARTH_RATE * s - vE * dRN / (rN * rN);
+
+	Ftheta_p[0][1] = 0.0;
+
+	Ftheta_p[0][2] = -vE / (rN * rN);
+
+	Ftheta_p[1][0] = vN * dRM / (rM * rM);
+
+	Ftheta_p[1][1] = 0.0;
+
+	Ftheta_p[1][2] = vN / (rM * rM);
+
+	Ftheta_p[2][0] = -EARTH_RATE * c
+			- vE * (sec2_lat / rN - tan_lat * dRN / (rN * rN));
+
+	Ftheta_p[2][1] = 0.0;
+
+	Ftheta_p[2][2] = vE * tan_lat / (rN * rN);
+
+	return 0;
+}
+
+int ins_build_Ftheta_v(double lat_rad, double height_m, Matrix3 Ftheta_v) {
+	const double s = sin(lat_rad);
+	const double c = cos(lat_rad);
+
+	if (fabs(c) < 1.0e-8)
+		return -1;
+
+	const double tan_lat = s / c;
+
+	const double q = 1.0 - WGS84_E2 * s * s;
+
+	const double sqrt_q = sqrt(q);
+
+	const double RN =
+	WGS84_A / sqrt_q;
+
+	const double RM =
+	WGS84_A * (1.0 - WGS84_E2) / (q * sqrt_q);
+
+	const double rN = RN + height_m;
+	const double rM = RM + height_m;
+
+	Ftheta_v[0][0] = 0.0;
+	Ftheta_v[0][1] = 1.0 / rN;
+	Ftheta_v[0][2] = 0.0;
+
+	Ftheta_v[1][0] = -1.0 / rM;
+	Ftheta_v[1][1] = 0.0;
+	Ftheta_v[1][2] = 0.0;
+
+	Ftheta_v[2][0] = 0.0;
+	Ftheta_v[2][1] = -tan_lat / rN;
+	Ftheta_v[2][2] = 0.0;
+
+	return 0;
+}
+
+int ins_build_Ftheta_theta(double lat_rad, double height_m, double vN,
+		double vE, Matrix3 Ftheta_theta) {
+	const double s = sin(lat_rad);
+	const double c = cos(lat_rad);
+
+	if (fabs(c) < 1.0e-8)
+		return -1;
+
+	const double tan_lat = s / c;
+
+	/*
+	 * WGS-84 radii of curvature
+	 */
+	const double q = 1.0 - WGS84_E2 * s * s;
+
+	const double sqrt_q = sqrt(q);
+
+	const double RN =
+	WGS84_A / sqrt_q;
+
+	const double RM =
+	WGS84_A * (1.0 - WGS84_E2) / (q * sqrt_q);
+
+	const double rN = RN + height_m;
+	const double rM = RM + height_m;
+
+	/*
+	 * omega_in = omega_ie + omega_en
+	 *
+	 * NED components
+	 */
+	const double omegaN =
+	EARTH_RATE * c + vE / rN;
+
+	const double omegaE = -vN / rM;
+
+	const double omegaD = -EARTH_RATE * s - vE * tan_lat / rN;
+
+	/*
+	 * Ftheta_theta = -[omega_in x]
+	 */
+	Ftheta_theta[0][0] = 0.0;
+	Ftheta_theta[0][1] = omegaD;
+	Ftheta_theta[0][2] = -omegaE;
+
+	Ftheta_theta[1][0] = -omegaD;
+	Ftheta_theta[1][1] = 0.0;
+	Ftheta_theta[1][2] = omegaN;
+
+	Ftheta_theta[2][0] = omegaE;
+	Ftheta_theta[2][1] = -omegaN;
+	Ftheta_theta[2][2] = 0.0;
+
+	return 0;
+}
