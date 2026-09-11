@@ -94,12 +94,12 @@ void ins_build_Fpp(double lat_rad, double height_m, double vN_mps,
 	 *
 	 * d(lambda_dot)/d(phi)
 	 */
-	Fpp.m_data[1][0] = (vE_mps / (rN * c)) * (tan(lat_rad) - dRN_dphi / rN);
+	Fpp.m10 = (vE_mps / (rN * c)) * (tan(lat_rad) - dRN_dphi / rN);
 
 	/*
 	 * d(lambda_dot)/d(h)
 	 */
-	Fpp[1][2] = -vE_mps / (rN * rN * c);
+	Fpp.m12 = -vE_mps / (rN * rN * c);
 
 	/*
 	 * ----------------------------------------------------
@@ -383,13 +383,13 @@ void ins_build_Fvtheta(const double fn[3], Matrix3_t Fvtheta) {
 void ins_build_Fvba(const Matrix3_t Cbn, Matrix3_t Fvba) {
 	for (int i = 0; i < 3; ++i) {
 		for (int j = 0; j < 3; ++j) {
-			Fvba.m_data[i][j] = Cbn[i][j];
+			Fvba.m_data[i][j] = Cbn.m_data[i][j];
 		}
 	}
 }
 
 int ins_build_Ftheta_p(double lat_rad, double height_m, double vN, double vE,
-		Matrix3 Ftheta_p) {
+		Matrix3_t *Ftheta_p) {
 	const double s = sin(lat_rad);
 	const double c = cos(lat_rad);
 
@@ -431,29 +431,29 @@ int ins_build_Ftheta_p(double lat_rad, double height_m, double vN, double vE,
 	 * Ftheta_p = Ap + Tp
 	 */
 
-	Ftheta_p[0][0] = -WGS84_EARTH_ROTATION_RAD_S * s - vE * dRN / (rN * rN);
+	Ftheta_p->m00 = -WGS84_EARTH_ROTATION_RAD_S * s - vE * dRN / (rN * rN);
 
-	Ftheta_p[0][1] = 0.0;
+	Ftheta_p->m01 = 0.0;
 
-	Ftheta_p[0][2] = -vE / (rN * rN);
+	Ftheta_p->m02 = -vE / (rN * rN);
 
-	Ftheta_p[1][0] = vN * dRM / (rM * rM);
+	Ftheta_p->m10 = vN * dRM / (rM * rM);
 
-	Ftheta_p[1][1] = 0.0;
+	Ftheta_p->m11 = 0.0;
 
-	Ftheta_p[1][2] = vN / (rM * rM);
+	Ftheta_p->m12 = vN / (rM * rM);
 
-	Ftheta_p[2][0] = -WGS84_EARTH_ROTATION_RAD_S * c
+	Ftheta_p->m20 = -WGS84_EARTH_ROTATION_RAD_S * c
 			- vE * (sec2_lat / rN - tan_lat * dRN / (rN * rN));
 
-	Ftheta_p[2][1] = 0.0;
+	Ftheta_p->m21 = 0.0;
 
-	Ftheta_p[2][2] = vE * tan_lat / (rN * rN);
+	Ftheta_p->m22 = vE * tan_lat / (rN * rN);
 
 	return 0;
 }
 
-int ins_build_Ftheta_v(double lat_rad, double height_m, Matrix3 Ftheta_v) {
+int ins_build_Ftheta_v(double lat_rad, double height_m, Matrix3_t *Ftheta_v) {
 	const double s = sin(lat_rad);
 	const double c = cos(lat_rad);
 
@@ -475,23 +475,23 @@ int ins_build_Ftheta_v(double lat_rad, double height_m, Matrix3 Ftheta_v) {
 	const double rN = RN + height_m;
 	const double rM = RM + height_m;
 
-	Ftheta_v[0][0] = 0.0;
-	Ftheta_v[0][1] = 1.0 / rN;
-	Ftheta_v[0][2] = 0.0;
+	Ftheta_v->m00 = 0.0;
+	Ftheta_v->m01 = 1.0 / rN;
+	Ftheta_v->m02 = 0.0;
 
-	Ftheta_v[1][0] = -1.0 / rM;
-	Ftheta_v[1][1] = 0.0;
-	Ftheta_v[1][2] = 0.0;
+	Ftheta_v->m10 = -1.0 / rM;
+	Ftheta_v->m11 = 0.0;
+	Ftheta_v->m12 = 0.0;
 
-	Ftheta_v[2][0] = 0.0;
-	Ftheta_v[2][1] = -tan_lat / rN;
-	Ftheta_v[2][2] = 0.0;
+	Ftheta_v->m20 = 0.0;
+	Ftheta_v->m21 = -tan_lat / rN;
+	Ftheta_v->m22 = 0.0;
 
 	return 0;
 }
 
 int ins_build_Ftheta_theta(double lat_rad, double height_m, double vN,
-		double vE, Matrix3 Ftheta_theta) {
+		double vE, Matrix3_t *Ftheta_theta) {
 	const double s = sin(lat_rad);
 	const double c = cos(lat_rad);
 
@@ -530,30 +530,30 @@ int ins_build_Ftheta_theta(double lat_rad, double height_m, double vN,
 	/*
 	 * Ftheta_theta = -[omega_in x]
 	 */
-	Ftheta_theta[0][0] = 0.0;
-	Ftheta_theta[0][1] = omegaD;
-	Ftheta_theta[0][2] = -omegaE;
+	Ftheta_theta->m00 = 0.0;
+	Ftheta_theta->m01 = omegaD;
+	Ftheta_theta->m02 = -omegaE;
 
-	Ftheta_theta[1][0] = -omegaD;
-	Ftheta_theta[1][1] = 0.0;
-	Ftheta_theta[1][2] = omegaN;
+	Ftheta_theta->m10 = -omegaD;
+	Ftheta_theta->m11 = 0.0;
+	Ftheta_theta->m12 = omegaN;
 
-	Ftheta_theta[2][0] = omegaE;
-	Ftheta_theta[2][1] = -omegaN;
-	Ftheta_theta[2][2] = 0.0;
+	Ftheta_theta->m20 = omegaE;
+	Ftheta_theta->m21 = -omegaN;
+	Ftheta_theta->m22 = 0.0;
 
 	return 0;
 }
 
-void ins_build_Ftheta_bg(const Matrix3 Cbn, Matrix3 Ftheta_bg) {
+void ins_build_Ftheta_bg(const Matrix3_t *Cbn, Matrix3_t *Ftheta_bg) {
 	for (int i = 0; i < 3; ++i) {
 		for (int j = 0; j < 3; ++j) {
-			Ftheta_bg[i][j] = -Cbn[i][j];
+			Ftheta_bg->m_data[i][j] = -Cbn->m_data[i][j];
 		}
 	}
 }
 
-int ins_build_Fbg_gauss_markov(double tau_g, Matrix3 Fbg) {
+int ins_build_Fbg_gauss_markov(double tau_g, Matrix3_t *Fbg) {
 	if (tau_g <= 0.0)
 		return -1;
 
@@ -561,16 +561,16 @@ int ins_build_Fbg_gauss_markov(double tau_g, Matrix3 Fbg) {
 
 	for (int i = 0; i < 3; ++i) {
 		for (int j = 0; j < 3; ++j) {
-			Fbg[i][j] = 0.0;
+			Fbg->m_data[i][j] = 0.0;
 		}
 
-		Fbg[i][i] = lambda;
+		Fbg->m_data[i][i] = lambda;
 	}
 
 	return 0;
 }
 
-int ins_build_Fbias_gauss_markov(const double tau[3], Matrix3 Fb) {
+int ins_build_Fbias_gauss_markov(const double tau[3], Matrix3_t *Fb) {
 	for (int i = 0; i < 3; ++i) {
 		if (tau[i] <= 0.0)
 			return -1;
@@ -578,28 +578,20 @@ int ins_build_Fbias_gauss_markov(const double tau[3], Matrix3 Fb) {
 
 	for (int i = 0; i < 3; ++i) {
 		for (int j = 0; j < 3; ++j) {
-			Fb[i][j] = 0.0;
+			Fb->m_data[i][j] = 0.0;
 		}
 
-		Fb[i][i] = -1.0 / tau[i];
+		Fb->m_data[i][i] = -1.0 / tau[i];
 	}
 
 	return 0;
 }
 
-int ins_build_continuous_F(double lat_rad, double height_m,
+int ins_build_continuous_F(double lat_rad, double height_m, double vN,
+		double vE, double vD, const double fn[3], const Matrix3 Cbn,
+		const Matrix3 Gp, const InsBiasConfig *bias_cfg,
 
-double vN, double vE, double vD,
-
-const double fn[3],
-
-const Matrix3 Cbn,
-
-const Matrix3 Gp,
-
-const InsBiasConfig *bias_cfg,
-
-Matrix15 F) {
+		Matrix15 F) {
 	Matrix3 Fpp;
 	Matrix3 Fpv;
 
