@@ -7,14 +7,14 @@
 
 #include <math.h>
 #include <stddef.h>
-
-typedef double Matrix3[3][3];
+#include "wgs84.h"
+#include "matrix.h"
 
 #define WGS84_A   6378137.0
 #define WGS84_E2  6.6943799901413165e-3
 
 void ins_build_Fpp(double lat_rad, double height_m, double vN_mps,
-		double vE_mps, Matrix3 Fpp) {
+		double vE_mps, Matrix3_t Fpp) {
 	const double s = sin(lat_rad);
 	const double c = cos(lat_rad);
 
@@ -67,7 +67,7 @@ void ins_build_Fpp(double lat_rad, double height_m, double vN_mps,
 	 */
 	for (size_t i = 0; i < 3; ++i) {
 		for (size_t j = 0; j < 3; ++j) {
-			Fpp[i][j] = 0.0;
+			Fpp.m_data[i][j] = 0.0;
 		}
 	}
 
@@ -79,12 +79,12 @@ void ins_build_Fpp(double lat_rad, double height_m, double vN_mps,
 	 *
 	 * d(phi_dot)/d(phi)
 	 */
-	Fpp[0][0] = -vN_mps * dRM_dphi / (rM * rM);
+	Fpp.m_data[0][0] = -vN_mps * dRM_dphi / (rM * rM);
 
 	/*
 	 * d(phi_dot)/d(h)
 	 */
-	Fpp[0][2] = -vN_mps / (rM * rM);
+	Fpp.m_data[0][2] = -vN_mps / (rM * rM);
 
 	/*
 	 * ----------------------------------------------------
@@ -94,7 +94,7 @@ void ins_build_Fpp(double lat_rad, double height_m, double vN_mps,
 	 *
 	 * d(lambda_dot)/d(phi)
 	 */
-	Fpp[1][0] = (vE_mps / (rN * c)) * (tan(lat_rad) - dRN_dphi / rN);
+	Fpp.m_data[1][0] = (vE_mps / (rN * c)) * (tan(lat_rad) - dRN_dphi / rN);
 
 	/*
 	 * d(lambda_dot)/d(h)
@@ -114,7 +114,7 @@ void ins_build_Fpp(double lat_rad, double height_m, double vN_mps,
 	 */
 }
 
-void ins_build_Fpv(double lat_rad, double height_m, Matrix3 Fpv) {
+void ins_build_Fpv(double lat_rad, double height_m, Matrix3_t Fpv) {
 	const double s = sin(lat_rad);
 	const double c = cos(lat_rad);
 
@@ -154,49 +154,47 @@ void ins_build_Fpv(double lat_rad, double height_m, Matrix3 Fpv) {
 	 */
 	for (size_t i = 0; i < 3; ++i) {
 		for (size_t j = 0; j < 3; ++j) {
-			Fpv[i][j] = 0.0;
+			Fpv.m_data[i][j] = 0.0;
 		}
 	}
 
 	/*
 	 * delta(phi_dot) / delta(vN)
 	 */
-	Fpv[0][0] = 1.0 / rM;
+	Fpv.m_data[0][0] = 1.0 / rM;
 
 	/*
 	 * delta(lambda_dot) / delta(vE)
 	 */
-	Fpv[1][1] = 1.0 / (rN * c);
+	Fpv.m_data[1][1] = 1.0 / (rN * c);
 
 	/*
 	 * h_dot = -vD
 	 */
-	Fpv[2][2] = -1.0;
+	Fpv.m_data[2][2] = -1.0;
 }
 
-#define EARTH_RATE 7.292115146706979e-5
-
-void build_Fvp_earth(double lat, double vN, double vE, double vD, Matrix3 F) {
+void build_Fvp_earth(double lat, double vN, double vE, double vD, Matrix3_t F) {
 	const double s = sin(lat);
 	const double c = cos(lat);
 
-	F[0][0] = -2.0 * EARTH_RATE * vE * c;
-	F[0][1] = 0.0;
-	F[0][2] = 0.0;
+	F.m00 = -2.0 * WGS84_EARTH_ROTATION_RAD_S * vE * c;
+	F.m01 = 0.0;
+	F.m02 = 0.0;
 
-	F[1][0] = 2.0 * EARTH_RATE * (vN * c - vD * s);
+	F.m10 = 2.0 * WGS84_EARTH_ROTATION_RAD_S * (vN * c - vD * s);
 
-	F[1][1] = 0.0;
-	F[1][2] = 0.0;
+	F.m11 = 0.0;
+	F.m12 = 0.0;
 
-	F[2][0] = 2.0 * EARTH_RATE * vE * s;
+	F.m20 = 2.0 * WGS84_EARTH_ROTATION_RAD_S * vE * s;
 
-	F[2][1] = 0.0;
-	F[2][2] = 0.0;
+	F.m21 = 0.0;
+	F.m22 = 0.0;
 }
 
 void build_Fvp_transport(double lat, double h, double vN, double vE, double vD,
-		Matrix3 F) {
+		Matrix3_t F) {
 	const double s = sin(lat);
 	const double c = cos(lat);
 
@@ -245,46 +243,46 @@ void build_Fvp_transport(double lat, double h, double vN, double vE, double vD,
 	 *
 	 * [v x] * [t1 t2 t3]^T
 	 */
-	F[0][0] = -vD * t2 + vE * t3;
-	F[1][0] = vD * t1 - vN * t3;
-	F[2][0] = -vE * t1 + vN * t2;
+	F.m00 = -vD * t2 + vE * t3;
+	F.m10 = vD * t1 - vN * t3;
+	F.m20 = -vE * t1 + vN * t2;
 
 	/*
 	 * Longitude column = zero
 	 */
-	F[0][1] = 0.0;
-	F[1][1] = 0.0;
-	F[2][1] = 0.0;
+	F.m01 = 0.0;
+	F.m11 = 0.0;
+	F.m21 = 0.0;
 
 	/*
 	 * Height column:
 	 *
 	 * [v x] * [u1 u2 u3]^T
 	 */
-	F[0][2] = -vD * u2 + vE * u3;
-	F[1][2] = vD * u1 - vN * u3;
-	F[2][2] = -vE * u1 + vN * u2;
+	F.m02 = -vD * u2 + vE * u3;
+	F.m12 = vD * u1 - vN * u3;
+	F.m22 = -vE * u1 + vN * u2;
 }
 
-void build_Fvp_gravity(double dg_dlat, double dg_dh, Matrix3 F) {
-	F[0][0] = 0.0;
-	F[0][1] = 0.0;
-	F[0][2] = 0.0;
+void build_Fvp_gravity(double dg_dlat, double dg_dh, Matrix3_t F) {
+	F.m00 = 0.0;
+	F.m01 = 0.0;
+	F.m02 = 0.0;
 
-	F[1][0] = 0.0;
-	F[1][1] = 0.0;
-	F[1][2] = 0.0;
+	F.m10 = 0.0;
+	F.m11 = 0.0;
+	F.m12 = 0.0;
 
-	F[2][0] = dg_dlat;
-	F[2][1] = 0.0;
-	F[2][2] = dg_dh;
+	F.m20 = dg_dlat;
+	F.m21 = 0.0;
+	F.m22 = dg_dh;
 }
 
 void build_Fvp(double lat, double h, double vN, double vE, double vD,
-		double dg_dlat, double dg_dh, Matrix3 Fvp) {
-	Matrix3 Fe;
-	Matrix3 Ft;
-	Matrix3 Fg;
+		double dg_dlat, double dg_dh, Matrix3_t Fvp) {
+	Matrix3_t Fe;
+	Matrix3_t Ft;
+	Matrix3_t Fg;
 
 	build_Fvp_earth(lat, vN, vE, vD, Fe);
 
@@ -294,21 +292,14 @@ void build_Fvp(double lat, double h, double vN, double vE, double vD,
 
 	for (int i = 0; i < 3; ++i) {
 		for (int j = 0; j < 3; ++j) {
-			Fvp[i][j] = Fe[i][j] + Ft[i][j] + Fg[i][j];
+			Fvp.m_data[i][j] = Fe.m_data[i][j] + Ft.m_data[i][j]
+					+ Fg.m_data[i][j];
 		}
 	}
 }
 
-#include <math.h>
-
-typedef double Matrix3[3][3];
-
-#define WGS84_A      6378137.0
-#define WGS84_E2     6.6943799901413165e-3
-#define EARTH_RATE   7.292115146706979e-5
-
 int ins_build_Fvv(double lat_rad, double height_m, double vN, double vE,
-		double vD, Matrix3 Fvv) {
+		double vD, Matrix3_t Fvv) {
 	const double s = sin(lat_rad);
 	const double c = cos(lat_rad);
 
@@ -336,11 +327,12 @@ int ins_build_Fvv(double lat_rad, double height_m, double vN, double vE,
 	/*
 	 * Omega = 2*omega_ie + omega_en
 	 */
-	const double OmegaN = 2.0 * EARTH_RATE * c + vE / rN;
+	const double OmegaN = 2.0 * WGS84_EARTH_ROTATION_RAD_S * c + vE / rN;
 
 	const double OmegaE = -vN / rM;
 
-	const double OmegaD = -2.0 * EARTH_RATE * s - vE * tan_lat / rN;
+	const double OmegaD = -2.0 * WGS84_EARTH_ROTATION_RAD_S * s
+			- vE * tan_lat / rN;
 
 	/*
 	 * Fvv =
@@ -349,55 +341,49 @@ int ins_build_Fvv(double lat_rad, double height_m, double vN, double vE,
 	 * Explicit form.
 	 */
 
-	Fvv[0][0] = vD / rM;
+	Fvv.m00 = vD / rM;
 
-	Fvv[0][1] = OmegaD - vE * tan_lat / rN;
+	Fvv.m01 = OmegaD - vE * tan_lat / rN;
 
-	Fvv[0][2] = -OmegaE;
+	Fvv.m02 = -OmegaE;
 
-	Fvv[1][0] = -OmegaD;
+	Fvv.m10 = -OmegaD;
 
-	Fvv[1][1] = vD / rN + vN * tan_lat / rN;
+	Fvv.m11 = vD / rN + vN * tan_lat / rN;
 
-	Fvv[1][2] = OmegaN;
+	Fvv.m12 = OmegaN;
 
-	Fvv[2][0] = OmegaE - vN / rM;
+	Fvv.m20 = OmegaE - vN / rM;
 
-	Fvv[2][1] = -OmegaN - vE / rN;
+	Fvv.m21 = -OmegaN - vE / rN;
 
-	Fvv[2][2] = 0.0;
+	Fvv.m22 = 0.0;
 
 	return 0;
 }
 
-#include <stddef.h>
-
-typedef double Matrix3[3][3];
-
-void ins_build_Fvtheta(const double fn[3], Matrix3 Fvtheta) {
+void ins_build_Fvtheta(const double fn[3], Matrix3_t Fvtheta) {
 	const double fN = fn[0];
 	const double fE = fn[1];
 	const double fD = fn[2];
 
-	Fvtheta[0][0] = 0.0;
-	Fvtheta[0][1] = -fD;
-	Fvtheta[0][2] = fE;
+	Fvtheta.m00 = 0.0;
+	Fvtheta.m01 = -fD;
+	Fvtheta.m02 = fE;
 
-	Fvtheta[1][0] = fD;
-	Fvtheta[1][1] = 0.0;
-	Fvtheta[1][2] = -fN;
+	Fvtheta.m10 = fD;
+	Fvtheta.m11 = 0.0;
+	Fvtheta.m12 = -fN;
 
-	Fvtheta[2][0] = -fE;
-	Fvtheta[2][1] = fN;
-	Fvtheta[2][2] = 0.0;
+	Fvtheta.m20 = -fE;
+	Fvtheta.m21 = fN;
+	Fvtheta.m22 = 0.0;
 }
 
-typedef double Matrix3[3][3];
-
-void ins_build_Fvba(const Matrix3 Cbn, Matrix3 Fvba) {
+void ins_build_Fvba(const Matrix3_t Cbn, Matrix3_t Fvba) {
 	for (int i = 0; i < 3; ++i) {
 		for (int j = 0; j < 3; ++j) {
-			Fvba[i][j] = Cbn[i][j];
+			Fvba.m_data[i][j] = Cbn[i][j];
 		}
 	}
 }
@@ -445,7 +431,7 @@ int ins_build_Ftheta_p(double lat_rad, double height_m, double vN, double vE,
 	 * Ftheta_p = Ap + Tp
 	 */
 
-	Ftheta_p[0][0] = -EARTH_RATE * s - vE * dRN / (rN * rN);
+	Ftheta_p[0][0] = -WGS84_EARTH_ROTATION_RAD_S * s - vE * dRN / (rN * rN);
 
 	Ftheta_p[0][1] = 0.0;
 
@@ -457,7 +443,7 @@ int ins_build_Ftheta_p(double lat_rad, double height_m, double vN, double vE,
 
 	Ftheta_p[1][2] = vN / (rM * rM);
 
-	Ftheta_p[2][0] = -EARTH_RATE * c
+	Ftheta_p[2][0] = -WGS84_EARTH_ROTATION_RAD_S * c
 			- vE * (sec2_lat / rN - tan_lat * dRN / (rN * rN));
 
 	Ftheta_p[2][1] = 0.0;
@@ -535,12 +521,11 @@ int ins_build_Ftheta_theta(double lat_rad, double height_m, double vN,
 	 *
 	 * NED components
 	 */
-	const double omegaN =
-	EARTH_RATE * c + vE / rN;
+	const double omegaN = WGS84_EARTH_ROTATION_RAD_S * c + vE / rN;
 
 	const double omegaE = -vN / rM;
 
-	const double omegaD = -EARTH_RATE * s - vE * tan_lat / rN;
+	const double omegaD = -WGS84_EARTH_ROTATION_RAD_S * s - vE * tan_lat / rN;
 
 	/*
 	 * Ftheta_theta = -[omega_in x]
@@ -556,6 +541,177 @@ int ins_build_Ftheta_theta(double lat_rad, double height_m, double vN,
 	Ftheta_theta[2][0] = omegaE;
 	Ftheta_theta[2][1] = -omegaN;
 	Ftheta_theta[2][2] = 0.0;
+
+	return 0;
+}
+
+void ins_build_Ftheta_bg(const Matrix3 Cbn, Matrix3 Ftheta_bg) {
+	for (int i = 0; i < 3; ++i) {
+		for (int j = 0; j < 3; ++j) {
+			Ftheta_bg[i][j] = -Cbn[i][j];
+		}
+	}
+}
+
+int ins_build_Fbg_gauss_markov(double tau_g, Matrix3 Fbg) {
+	if (tau_g <= 0.0)
+		return -1;
+
+	const double lambda = -1.0 / tau_g;
+
+	for (int i = 0; i < 3; ++i) {
+		for (int j = 0; j < 3; ++j) {
+			Fbg[i][j] = 0.0;
+		}
+
+		Fbg[i][i] = lambda;
+	}
+
+	return 0;
+}
+
+int ins_build_Fbias_gauss_markov(const double tau[3], Matrix3 Fb) {
+	for (int i = 0; i < 3; ++i) {
+		if (tau[i] <= 0.0)
+			return -1;
+	}
+
+	for (int i = 0; i < 3; ++i) {
+		for (int j = 0; j < 3; ++j) {
+			Fb[i][j] = 0.0;
+		}
+
+		Fb[i][i] = -1.0 / tau[i];
+	}
+
+	return 0;
+}
+
+int ins_build_continuous_F(double lat_rad, double height_m,
+
+double vN, double vE, double vD,
+
+const double fn[3],
+
+const Matrix3 Cbn,
+
+const Matrix3 Gp,
+
+const InsBiasConfig *bias_cfg,
+
+Matrix15 F) {
+	Matrix3 Fpp;
+	Matrix3 Fpv;
+
+	Matrix3 Fvp;
+	Matrix3 Fvv;
+	Matrix3 Fvtheta;
+	Matrix3 Fvba;
+
+	Matrix3 Ftheta_p;
+	Matrix3 Ftheta_v;
+	Matrix3 Ftheta_theta;
+	Matrix3 Ftheta_bg;
+
+	Matrix3 Fba;
+	Matrix3 Fbg;
+
+	/*
+	 * Always zero complete matrix first.
+	 */
+	mat15_zero(F);
+
+	/*
+	 * --------------------------------------------------
+	 * POSITION ROW
+	 * --------------------------------------------------
+	 */
+
+	ins_build_Fpp(lat_rad, height_m, vN, vE, Fpp);
+
+	ins_build_Fpv(lat_rad, height_m, Fpv);
+
+	/*
+	 * --------------------------------------------------
+	 * VELOCITY ROW
+	 * --------------------------------------------------
+	 */
+
+	if (ins_build_Fvp(lat_rad, height_m, vN, vE, vD, Gp, Fvp) != 0) {
+		return -1;
+	}
+
+	if (ins_build_Fvv(lat_rad, height_m, vN, vE, vD, Fvv) != 0) {
+		return -1;
+	}
+
+	ins_build_Fvtheta(fn, Fvtheta);
+
+	ins_build_Fvba(Cbn, Fvba);
+
+	/*
+	 * --------------------------------------------------
+	 * ATTITUDE ROW
+	 * --------------------------------------------------
+	 */
+
+	if (ins_build_Ftheta_p(lat_rad, height_m, vN, vE, Ftheta_p) != 0) {
+		return -1;
+	}
+
+	if (ins_build_Ftheta_v(lat_rad, height_m, Ftheta_v) != 0) {
+		return -1;
+	}
+
+	if (ins_build_Ftheta_theta(lat_rad, height_m, vN, vE, Ftheta_theta) != 0) {
+		return -1;
+	}
+
+	ins_build_Ftheta_bg(Cbn, Ftheta_bg);
+
+	/*
+	 * --------------------------------------------------
+	 * BIAS ROWS
+	 * --------------------------------------------------
+	 */
+
+	if (ins_build_bias_block(bias_cfg->accel_bias_model, bias_cfg->tau_accel,
+			Fba) != 0) {
+		return -1;
+	}
+
+	if (ins_build_bias_block(bias_cfg->gyro_bias_model, bias_cfg->tau_gyro, Fbg)
+			!= 0) {
+		return -1;
+	}
+
+	/*
+	 * --------------------------------------------------
+	 * INSERT BLOCKS
+	 * --------------------------------------------------
+	 */
+
+	/* position */
+	mat15_insert3(F, 0, 0, Fpp);
+	mat15_insert3(F, 0, 3, Fpv);
+
+	/* velocity */
+	mat15_insert3(F, 3, 0, Fvp);
+	mat15_insert3(F, 3, 3, Fvv);
+	mat15_insert3(F, 3, 6, Fvtheta);
+	mat15_insert3(F, 3, 9, Fvba);
+
+	/* attitude */
+	mat15_insert3(F, 6, 0, Ftheta_p);
+	mat15_insert3(F, 6, 3, Ftheta_v);
+	mat15_insert3(F, 6, 6, Ftheta_theta);
+	mat15_insert3(F, 6, 12, Ftheta_bg);
+
+	/* accel bias */
+	mat15_insert3(F, 9, 9, Fba);
+
+	/* gyro bias */
+	mat15_insert3(F, 12, 12, Fbg);
 
 	return 0;
 }
